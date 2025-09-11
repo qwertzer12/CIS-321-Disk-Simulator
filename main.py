@@ -3,6 +3,8 @@ import argparse
 
 class MyApp(cmd2.Cmd):
     """A simple command-line application using cmd2."""
+    
+
     greet_parser = cmd2.Cmd2ArgumentParser()
     greet_parser.add_argument('-g', '--goodbye', action='store_true', help='switch to say goodbye')
     greet_parser.add_argument('name', nargs='+', help='name of the person to greet')
@@ -13,7 +15,7 @@ class MyApp(cmd2.Cmd):
         if args.goodbye:
             self.poutput(f"Goodbye, {' '.join(args.name)}!")
         else:
-            self.poutput(f"Hello, {args.name}!")
+            self.poutput(f"Hello, {' '.join(args.name)}!")
 
     def do_exit(self, args):
         """Exit the application."""
