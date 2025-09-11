@@ -1,5 +1,5 @@
 import cmd2
-import argparse
+import disk_simulator
 
 class MyApp(cmd2.Cmd):
     """A simple command-line application using cmd2."""
@@ -11,7 +11,6 @@ class MyApp(cmd2.Cmd):
     greet_parser = cmd2.Cmd2ArgumentParser()
     greet_parser.add_argument('-g', '--goodbye', action='store_true', help='switch to say goodbye')
     greet_parser.add_argument('name', nargs='+', help='name of the person to greet')
-
     @cmd2.with_argparser(greet_parser)
     def do_greet(self, args):
         """Greet the user."""
