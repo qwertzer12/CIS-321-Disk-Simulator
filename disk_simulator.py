@@ -1,4 +1,5 @@
 import json
+import os
 
 class Inode:
     def __init__(self, file_type: str, size: int, pointers: list):
@@ -21,8 +22,12 @@ for i in range(8, 64):
 for i in range(len(drive)):
     print(f"Block {i}: {drive[i]}")
 
+# Save the drive structure to a JSON file
+save_path = "drive_bay"
+if not os.path.exists(save_path):
+    os.makedirs(save_path)
 try:
-    with open("virtual_disk.json", "w") as f:
+    with open(os.path.join(save_path, "virtual_disk.json"), "w") as f:
         json.dump(drive, f, indent=4)
 except Exception as e:
     print(f"Error writing to file: {e}")
