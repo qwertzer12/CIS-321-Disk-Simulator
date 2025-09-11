@@ -3,7 +3,10 @@ import argparse
 
 class MyApp(cmd2.Cmd):
     """A simple command-line application using cmd2."""
-    
+    def __init__(self):
+        super().__init__()
+        self.intro = "Welcome to MyApp! Type help or ? to list commands.\n"
+        self.prompt = "AFS$ "
 
     greet_parser = cmd2.Cmd2ArgumentParser()
     greet_parser.add_argument('-g', '--goodbye', action='store_true', help='switch to say goodbye')
