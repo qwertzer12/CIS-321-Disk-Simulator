@@ -232,3 +232,4 @@ pyrightconfig.json
 
 *.json
 !example.json
+!.devcontainer/devcontainer.json
