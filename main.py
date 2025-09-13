@@ -5,7 +5,7 @@ mounted_drives: dict[str, Drive] = {"A": Drive(64), "B": Drive(128)}
 
 class MyApp(cmd2.Cmd):
     """A simple command-line application using cmd2."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.intro = "Welcome to MyApp! Type help or ? to list commands.\n"
         self.prompt = "AFS$ "
@@ -22,7 +22,7 @@ class MyApp(cmd2.Cmd):
     greet_parser.add_argument('-g', '--goodbye', action='store_true', help='switch to say goodbye')
     greet_parser.add_argument('name', nargs='+', help='name of the person to greet')
     @cmd2.with_argparser(greet_parser)
-    def do_greet(self, args):
+    def do_greet(self, args) -> None:
         if args.goodbye:
             self.poutput(f"Goodbye, {' '.join(args.name)}!")
         else:
@@ -32,7 +32,7 @@ class MyApp(cmd2.Cmd):
 
     lsblk_parser = cmd2.Cmd2ArgumentParser(description='List block devices.')
     @cmd2.with_argparser(lsblk_parser)
-    def do_lsblk(self, args):
+    def do_lsblk(self, args) -> None:
         self.poutput("Listing block devices...")
 
         for path, drive in mounted_drives.items():
@@ -47,7 +47,7 @@ class MyApp(cmd2.Cmd):
     mkdrive_parser.add_argument('-s', '--size', type=int, help='Size of the new drive in blocks')
     mkdrive_parser.add_argument('name', nargs=1, help='Name of the new drive')
     @cmd2.with_argparser(mkdrive_parser)
-    def do_mkdrive(self, args):
+    def do_mkdrive(self, args) -> None:
         name = args.name[0].upper() if args.name[0].isalpha() else args.name[0]
 
         size = args.size
@@ -69,7 +69,7 @@ class MyApp(cmd2.Cmd):
     mount_parser.add_argument('-p', '--path', type=str, help='Path to mount the drive')
     mount_parser.add_argument('name', nargs=1, help='Name of the drive to mount')
     @cmd2.with_argparser(mount_parser)
-    def do_mount(self, args):
+    def do_mount(self, args) -> None:
         path = args.path.upper() if args.path and args.path.isalpha() else args.path if args.path else None
         name = args.name[0]
 
@@ -102,7 +102,7 @@ class MyApp(cmd2.Cmd):
     unmount_parser = cmd2.Cmd2ArgumentParser(description='Unmount a virtual drive.')
     unmount_parser.add_argument('path', nargs=1, help='Path of the drive to unmount')
     @cmd2.with_argparser(unmount_parser)
-    def do_unmount(self, args):
+    def do_unmount(self, args) -> None:
         path = args.path[0].upper()
         if path not in mounted_drives:
             self.perror(f"Error: No drive is mounted at {path}.")
@@ -113,7 +113,7 @@ class MyApp(cmd2.Cmd):
 
 
 
-    def do_exit(self, args):
+    def do_exit(self, args) -> bool:
         """Exit the application."""
         print("Goodbye!")
         return True

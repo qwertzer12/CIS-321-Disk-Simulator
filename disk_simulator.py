@@ -4,19 +4,19 @@ import os
 SAVE_PATH = "drive_bay"
 
 class Inode:
-    def __init__(self, file_type: str, size: int, pointers: list):
+    def __init__(self, file_type: str, size: int, pointers: list) -> None:
         self.file_type = file_type  # 'file' or 'directory'
         self.size = size            # size in bytes
         self.pointers = pointers    # list of block indices
 
 class Drive:
-    def __init__(self, total_blocks: int, block_list: list = None):
+    def __init__(self, total_blocks: int, block_list: list = None) -> None:
         self.block_list = block_list if block_list is not None else [None] * total_blocks
         self.block_list[0] = { # Superblock
             "total_blocks": total_blocks,
             }
 
-def save_drive(drive: Drive, filename: str):
+def save_drive(drive: Drive, filename: str) -> None:
     
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
