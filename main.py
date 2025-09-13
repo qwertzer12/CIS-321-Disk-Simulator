@@ -44,7 +44,7 @@ class MyApp(cmd2.Cmd):
 
 
     mkdrive_parser = cmd2.Cmd2ArgumentParser(description='Create a new virtual drive.')
-    mkdrive_parser.add_argument('-b', '--block', type=int, help='Size of the new drive in blocks')
+    mkdrive_parser.add_argument('-b', '--block', type=int, help='Size of the new drive in blocks (must be at least 32)', default=None)
     mkdrive_parser.add_argument('-s', '--size', type=int, help='Size of the blocks in bytes (default 4096)', default=4096)
     mkdrive_parser.add_argument('-i', '--inode', type=int, help='Number of inodes (default 80)', default=80)
     mkdrive_parser.add_argument('name', nargs=1, help='Name of the new drive')
@@ -55,14 +55,50 @@ class MyApp(cmd2.Cmd):
         block = args.block
         size = args.size
         inode = args.inode
+
         while block is None:
             self.poutput("Enter block count:")
             answer = input()
             if not answer.isdigit():
                 self.perror("Error: Blocks must be an integer.")
                 pass
+            elif int(answer) < 32:
+                self.perror("Error: Blocks must be at least 32.")
+                pass
             else:
                 block = int(answer)
+        
+        if size < 1024:
+            self.perror("Error: Block size must be at least 1024 bytes.")
+            size = None
+        
+        while size is None:
+            self.poutput("Enter block size (in bytes):")
+            answer = input()
+            if not answer.isdigit():
+                self.perror("Error: Block size must be an integer.")
+                pass
+            elif int(answer) < 1024:
+                self.perror("Error: Block size must be at least 1024 bytes.")
+                pass
+            else:
+                size = int(answer)
+            
+        if inode < 1:
+            self.perror("Error: There must be at least 1 inode.")
+            inode = None
+
+        while inode is None:
+            self.poutput("Enter inode count:")
+            answer = input()
+            if not answer.isdigit():
+                self.perror("Error: Inode count must be an integer.")
+                pass
+            elif int(answer) < 1:
+                self.perror("Error: There must be at least 1 inode.")
+                pass
+            else:
+                inode = int(answer)
 
         save_drive(Drive(block, None, size, inode), name + ".json")
         self.poutput(f"Created new drive: {name}, {block} blocks in {size} byte increments.\n Remember to mount the new drive.")
