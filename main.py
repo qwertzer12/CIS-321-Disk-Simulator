@@ -31,12 +31,39 @@ class MyApp(cmd2.Cmd):
 
 
     lsblk_parser = cmd2.Cmd2ArgumentParser(description='List block devices.')
+    lsblk_parser.add_argument('-a', '--all', action='store_true', help='include unmounted devices')
     @cmd2.with_argparser(lsblk_parser)
     def do_lsblk(self, args) -> None:
-        self.poutput("Listing block devices...")
+        mode = "all" if args.all else "mounted only"
+        self.poutput(f"Mode: {mode}")
 
-        for path, drive in mounted_drives.items():
-            self.poutput(f"Drive: {path}, Size: {drive.block_list[0]["total_blocks"]}")
+        if mode == "mounted only":
+            if not mounted_drives:
+                self.poutput("No drives are currently mounted.")
+                return
+            self.poutput("Mounted drives:")
+            for path, drive in mounted_drives.items():
+                self.poutput(f"Drive: {path}, Size: {drive.block_list[0]["total_blocks"]}")
+            return
+        elif mode == "all":
+            self.poutput("All block devices:")
+            if mounted_drives:
+                self.poutput("    Mounted drives:")
+                for path, drive in mounted_drives.items():
+                    self.poutput(f"Drive: {path}, Size: {drive.block_list[0]["total_blocks"]}")
+            unmounted_drives = []
+            try:
+                for file in os.listdir(SAVE_PATH):
+                    if file.endswith(".json"):
+                        unmounted_drives.append(file)
+            except FileNotFoundError:
+                pass
+            if unmounted_drives:
+                self.poutput("    Raw drive files:")
+                for file in unmounted_drives:
+                    self.poutput(f"Drive file: {file}")            
+
+        
         # Here you would add the actual logic to list block devices
         # For example, using the `lsblk` command and capturing its output
 
@@ -102,6 +129,23 @@ class MyApp(cmd2.Cmd):
 
         save_drive(Drive(block, None, size, inode), name + ".json")
         self.poutput(f"Created new drive: {name}, {block} blocks in {size} byte increments.\n Remember to mount the new drive.")
+
+
+
+
+
+    rmdrive_parser = cmd2.Cmd2ArgumentParser(description='Remove a virtual drive file.')
+    rmdrive_parser.add_argument('name', nargs=1, help='Name of the drive to remove')
+    @cmd2.with_argparser(rmdrive_parser)
+    def do_rmdrive(self, args) -> None:
+        name = args.name[0].upper() if args.name[0].isalpha() else args.name[0]
+        try:
+            os.remove(os.path.join(SAVE_PATH, name + ".json"))
+            self.poutput(f"Removed drive file: {name}.json")
+        except FileNotFoundError:
+            self.perror(f"Error: Drive file {name}.json not found.")
+        except Exception as e:
+            self.perror(f"Error removing drive file {name}.json: {e}")
 
 
 
