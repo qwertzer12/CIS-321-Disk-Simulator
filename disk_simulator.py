@@ -1,6 +1,8 @@
 import json
 import os
 
+SAVE_PATH = "drive_bay"
+
 class Inode:
     def __init__(self, file_type: str, size: int, pointers: list):
         self.file_type = file_type  # 'file' or 'directory'
@@ -14,15 +16,28 @@ class Drive:
             "total_blocks": total_blocks,
             }
 
-def save_drive_to_json(drive: Drive, filename: str):
-    save_path = "drive_bay"
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+def save_drive(drive: Drive, filename: str):
+    
+    if not os.path.exists(SAVE_PATH):
+        os.makedirs(SAVE_PATH)
     try:
-        with open(os.path.join(save_path, filename), "w") as f:
+        with open(os.path.join(SAVE_PATH, filename), "w") as f:
             json.dump(drive.__dict__, f, indent=4)
     except Exception as e:
         print(f"Error writing to file: {e}")
+
+def load_drive(filename: str) -> Drive | None:
+    try:
+        with open(os.path.join(SAVE_PATH, filename), "r") as f:
+            data = json.load(f)
+            drive = Drive(total_blocks=data["block_list"][0]["total_blocks"], block_list=data["block_list"])
+            return drive
+    except FileNotFoundError:
+        print(f"File {filename} not found.")
+        return None
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON from file {filename}.")
+        return None
 
 if __name__ == "__main__":
     MainDrive = Drive(total_blocks=64)
@@ -52,5 +67,5 @@ if __name__ == "__main__":
         print(f"Block {i}: {drive[i]}")
 
     # Save the drive structure to a JSON file
-    save_drive_to_json(MainDrive, "virtual_disk.json")
+    save_drive(MainDrive, "virtual_disk.json")
 
