@@ -44,24 +44,29 @@ class MyApp(cmd2.Cmd):
 
 
     mkdrive_parser = cmd2.Cmd2ArgumentParser(description='Create a new virtual drive.')
-    mkdrive_parser.add_argument('-s', '--size', type=int, help='Size of the new drive in blocks')
+    mkdrive_parser.add_argument('-b', '--block', type=int, help='Size of the new drive in blocks')
+    mkdrive_parser.add_argument('-s', '--size', type=int, help='Size of the blocks in bytes (default 4096)', default=4096)
+    mkdrive_parser.add_argument('-i', '--inode', type=int, help='Number of inodes (default 80)', default=80)
     mkdrive_parser.add_argument('name', nargs=1, help='Name of the new drive')
     @cmd2.with_argparser(mkdrive_parser)
     def do_mkdrive(self, args) -> None:
         name = args.name[0].upper() if args.name[0].isalpha() else args.name[0]
 
+        block = args.block
         size = args.size
-        while size is None:
-            self.poutput("Enter size:")
+        inode = args.inode
+        while block is None:
+            self.poutput("Enter block count:")
             answer = input()
             if not answer.isdigit():
-                self.perror("Error: Size must be an integer.")
+                self.perror("Error: Blocks must be an integer.")
                 pass
             else:
-                size = int(answer)
+                block = int(answer)
 
-        save_drive(Drive(size), name + ".json")
-        self.poutput(f"Created new drive: {name}, Size: {size} blocks.\n Remember to mount the new drive.")
+        save_drive(Drive(block, None, size, inode), name + ".json")
+        self.poutput(f"Created new drive: {name}, {block} blocks in {size} byte increments.\n Remember to mount the new drive.")
+
 
 
 
