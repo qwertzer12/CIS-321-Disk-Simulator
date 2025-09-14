@@ -61,11 +61,8 @@ class MyApp(cmd2.Cmd):
             if unmounted_drives:
                 self.poutput("    Raw drive files:")
                 for file in unmounted_drives:
-                    self.poutput(f"Drive file: {file}")            
+                    self.poutput(f"Drive file: {file[0:-5]}")            
 
-        
-        # Here you would add the actual logic to list block devices
-        # For example, using the `lsblk` command and capturing its output
 
 
 
