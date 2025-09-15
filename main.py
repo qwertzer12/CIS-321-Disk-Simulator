@@ -2,6 +2,7 @@ import cmd2
 from disk_simulator import *
 
 mounted_drives: dict[str, Drive] = {"A": Drive(64), "B": Drive(128)}
+drive_choices:list[str] = [f[:-5] for f in os.listdir(SAVE_PATH) if f.endswith(".json")] if os.path.exists(SAVE_PATH) else []
 
 class MyApp(cmd2.Cmd):
     """A simple command-line application using cmd2."""
@@ -27,6 +28,7 @@ class MyApp(cmd2.Cmd):
             self.poutput(f"Goodbye, {' '.join(args.name)}!")
         else:
             self.poutput(f"Hello, {' '.join(args.name)}!")
+
 
 
 
@@ -61,7 +63,9 @@ class MyApp(cmd2.Cmd):
             if unmounted_drives:
                 self.poutput("    Raw drive files:")
                 for file in unmounted_drives:
-                    self.poutput(f"Drive file: {file[0:-5]}")            
+                    self.poutput(f"Drive file: {file[0:-5]}")
+                    if file not in drive_choices:
+                        drive_choices.append(file[0:-5])
 
 
 
@@ -125,6 +129,7 @@ class MyApp(cmd2.Cmd):
                 inode = int(answer)
 
         save_drive(Drive(block, None, size, inode), name + ".json")
+        drive_choices.append(name)
         self.poutput(f"Created new drive: {name}, {block} blocks in {size} byte increments.\n Remember to mount the new drive.")
 
 
@@ -132,9 +137,10 @@ class MyApp(cmd2.Cmd):
 
 
     rmdrive_parser = cmd2.Cmd2ArgumentParser(description='Remove a virtual drive file.')
-    rmdrive_parser.add_argument('name', nargs=1, help='Name of the drive to remove')
+    rmdrive_parser.add_argument('name', nargs=1, choices=drive_choices, help='Name of the drive to remove')
     @cmd2.with_argparser(rmdrive_parser)
     def do_rmdrive(self, args) -> None:
+
         name = args.name[0].upper() if args.name[0].isalpha() else args.name[0]
         try:
             os.remove(os.path.join(SAVE_PATH, name + ".json"))
@@ -149,7 +155,7 @@ class MyApp(cmd2.Cmd):
 
     mount_parser = cmd2.Cmd2ArgumentParser(description='Mount a virtual drive.')
     mount_parser.add_argument('-p', '--path', type=str, help='Path to mount the drive')
-    mount_parser.add_argument('name', nargs=1, help='Name of the drive to mount')
+    mount_parser.add_argument('name', nargs=1, choices=drive_choices, help='Name of the drive to mount')
     @cmd2.with_argparser(mount_parser)
     def do_mount(self, args) -> None:
         path = args.path.upper() if args.path and args.path.isalpha() else args.path if args.path else None
