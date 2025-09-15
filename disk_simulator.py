@@ -1,14 +1,37 @@
 import json
 import math
 import os
+import datetime
 
 SAVE_PATH = "drive_bay"
 
 class Inode:
-    def __init__(self, file_type: str, size: int, pointers: list) -> None:
-        self.file_type = file_type  # 'file' or 'directory'
-        self.size = size            # size in bytes
-        self.pointers = pointers    # list of block indices
+    def __init__(self,file_name: str, file_type: str, size: int, pointers: list[tuple], uid: str, time: str, permissions: list[int]) -> None:
+        self.file_name = file_name                                              # Name of the file or directory
+        self.file_type = file_type                                              # 'file' or 'directory'
+        self.size = size                                                        # size in bytes
+        self.pointers = pointers                                                # list of block indices
+        self.uid = uid                                                          # File creator
+        self.time_accessed = time                                               # Last accessed time
+        self.time_modified = time                                               # Last modified time
+        self.time_created = time                                                # Creation time
+        self.time_deleted = None                                                # Deletion time
+        self.blocks_used = self.update_blocks_used()                            # Number of blocks used
+        self.permissions = permissions                                          # 3 ints for user, group, others (rwx as 4+2+1)
+    
+    def update_access_time(self) -> None:
+        self.time_accessed = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    def update_modified_time(self) -> None:
+        self.time_modified = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.update_access_time()
+    
+    def update_deleted_time(self) -> None:
+        self.time_deleted = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.update_modified_time()
+    
+    def update_blocks_used(self) -> None:
+        self.blocks_used = sum([b - a + 1 for a, b in self.pointers])
 
 class Drive:
     def __init__(self, total_blocks: int, block_list: list = None, block_size: int = 4096, inode_count: int = 80) -> None:
