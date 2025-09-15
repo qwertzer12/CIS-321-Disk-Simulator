@@ -64,6 +64,9 @@ class Drive:
         
         for i in range(inode_count): # initialize inodes as free
             self.block_list[inode_start + (i // inode_per_block)][i % inode_per_block] = Inode(file_name='' ,file_type="free", size=0, pointers=[], uid='', time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), permissions=[7,7,7]).__dict__
+        
+        for i in range(self.block_list[0]["data_start"], total_blocks): # initialize data blocks
+            self.block_list[i] = ''
 
     def find_free_inode(self) -> int | None:
         inode_bitmap = self.block_list[self.block_list[0]["inode_bitmap_start"]]
