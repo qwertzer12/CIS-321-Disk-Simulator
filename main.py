@@ -201,6 +201,39 @@ class MyApp(cmd2.Cmd):
 
 
 
+    displaydata_parser = cmd2.Cmd2ArgumentParser(description='Display the contents of a mounted drive.')
+    displaydata_parser.add_argument('path', nargs=1, help='Path of the drive to display')
+    @cmd2.with_argparser(displaydata_parser)
+    def do_displaydata(self, args) -> None:
+        path = args.path[0].upper()
+        if path not in mounted_drives:
+            self.perror(f"Error: No drive is mounted at {path}.")
+            return
+        drive = mounted_drives[path]
+        self.poutput(f"Contents of drive at {path}:")
+        data_start = drive.block_list[0]["data_start"]
+        display: list[str] = []
+        message = ""
+        for i in range(data_start, drive.block_list[0]["total_blocks"]):
+            if drive.block_list[i] == '':
+                message += "-"
+            else:
+                message += "#"
+            if len(message) == 8:
+                display.append(message)
+                message = ""
+        
+        if message:
+            display.append(message)
+        
+        for i in range(0, len(display), 8):
+            self.poutput(" ".join(display[i:i+8]))
+            
+        
+
+
+
+
     def do_exit(self, args) -> bool:
         """Exit the application."""
         print("Goodbye!")
