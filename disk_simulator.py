@@ -107,10 +107,7 @@ class Drive:
 
         return None
     
-    def write_file(self, data: str, file_inode: Inode, inode_index: int = find_free_inode()) -> bool:
-        if inode_index is None:
-            return False
-        
+    def write_file(self, data: str, file_inode: Inode, inode_index: int) -> bool:
         INODE_BLOCK_START = self.block_list[0]["inode_bitmap_start"]
 
         CHAR_BLOCK_SIZE = 32  # Number of characters per block
