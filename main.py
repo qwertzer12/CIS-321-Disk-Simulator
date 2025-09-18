@@ -238,9 +238,19 @@ class MyApp(cmd2.Cmd):
 
     write_parser = cmd2.Cmd2ArgumentParser(description='Write data to a mounted drive.')
     write_parser.add_argument('path', nargs=1, help='Path of the drive to write to')
+    write_parser.add_argument('data', nargs='1', help='Data to write to the file. Enclose in quotes for multiple words.')
     @cmd2.with_argparser(write_parser)
     def do_write(self, args) -> None:
-        pass
+        self.poutput(args.path)
+        self.poutput(args.data)
+        path = args.path[0]
+        if path[0] not in mounted_drives:
+            self.perror(f"Error: No drive is mounted at {path[0]}.")
+            return
+        data = args.data[0]
+        
+        drive = mounted_drives[path[0]]
+        
         
 
 

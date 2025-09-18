@@ -164,6 +164,19 @@ class Drive:
         
         return True
     
+    def find_file(self, file_name: str) -> int | None:
+        inode_bitmap = self.block_list[self.block_list[0]["inode_bitmap_start"]]
+        inode_start = self.block_list[0]["inode_start"]
+        inode_size = self.block_list[0]["inode_size"]
+        inode_per_block = self.block_list[0]["block_size"] // 256
+
+        for i in range(len(inode_bitmap)):
+            if inode_bitmap[i]:
+                inode = self.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                if inode["file_name"] == file_name:
+                    return i
+        return None
+    
 
 def save_drive(drive: Drive, filename: str) -> None:
     
@@ -192,9 +205,13 @@ if __name__ == "__main__":
     MainDrive = Drive(total_blocks=64)
     drive = MainDrive.block_list
     test_inode = Inode("test.txt", "File", 1, [], "user", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), [7,7,7], [])
+    test_inode2 = Inode("test2.txt", "File", 1, [], "user", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), [7,7,7], [])
+
     MainDrive.write_inode("Hello, World! This is a test file.", test_inode, MainDrive.find_free_inode())
     print(MainDrive.load_inode(0))
-    print(MainDrive.delete_inode(0))
-    print(MainDrive.load_inode(0))
+    MainDrive.write_inode("This is another test file.", test_inode2, MainDrive.find_free_inode())
 
     save_drive(MainDrive, "test_drive.json")
+
+    print(MainDrive.find_file("test.txt"))
+    print(MainDrive.find_file("test2.txt"))
