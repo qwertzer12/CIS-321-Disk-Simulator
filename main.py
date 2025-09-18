@@ -226,9 +226,21 @@ class MyApp(cmd2.Cmd):
         if message:
             display.append(message)
         
-        for i in range(0, len(display), 8):
-            self.poutput(" ".join(display[i:i+8]))
-            
+        print_chain = []
+        for i in range(0, len(display)):
+            print_chain.append(display[i])
+            if (i + 1) % 2 == 0 or i == len(display) - 1:
+                self.poutput(" ".join(print_chain))
+                print_chain = []
+
+    
+
+
+    write_parser = cmd2.Cmd2ArgumentParser(description='Write data to a mounted drive.')
+    write_parser.add_argument('path', nargs=1, help='Path of the drive to write to')
+    @cmd2.with_argparser(write_parser)
+    def do_write(self, args) -> None:
+        pass
         
 
 

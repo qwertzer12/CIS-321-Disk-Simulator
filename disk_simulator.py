@@ -21,12 +21,12 @@ class Inode:
         self.permissions = permissions                                          # 3 ints for user, group, others (rwx as 4+2+1)
         self.mli_pointer = mli_pointer                                          # Pointers for Multi-Level Indexing (if needed)
     
-    def __init__(self, pointers: list[tuple], mli_pointer: list = [], MLI_TRUE = True): # Multi-Level Indexing constructor
-        self.pointers = pointers
-        self.mli_pointer = mli_pointer
-        self.MLI_TRUE = MLI_TRUE
-        self.blocks_used = 0
-        self.update_blocks_used()
+    # def __init__(self, pointers: list[tuple], mli_pointer: list = [], MLI_TRUE = True): # Multi-Level Indexing constructor
+    #     self.pointers = pointers
+    #     self.mli_pointer = mli_pointer
+    #     self.MLI_TRUE = MLI_TRUE
+    #     self.blocks_used = 0
+    #     self.update_blocks_used()
     
     def update_access_time(self) -> None:
         self.time_accessed = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -40,7 +40,7 @@ class Inode:
         self.update_modified_time()
     
     def update_blocks_used(self) -> None:
-        self.blocks_used = sum([b for a, b in self.pointers]) + (sum([blocks_used for blocks_used in self.mli_pointer]) if len(self.mli_pointer) > 0 else 0)
+        self.blocks_used = sum([b for a, b in self.pointers])
 
 class Drive:
     def __init__(self, total_blocks: int, block_list: list = None, block_size: int = 4096, inode_count: int = 80) -> None:
@@ -106,6 +106,33 @@ class Drive:
                     length = 0
 
         return None
+    
+    def write_file(self, data: str, file_inode: Inode, inode_index: int = find_free_inode()) -> bool:
+        if inode_index is None:
+            return False
+        
+        INODE_BLOCK_START = self.block_list[0]["inode_bitmap_start"]
+
+        CHAR_BLOCK_SIZE = 32  # Number of characters per block
+        DATA_BLOCKS_NEEDED = math.ceil(len(data) / CHAR_BLOCK_SIZE)
+        FREE_DATA_BLOCKS = self.find_free_data_blocks(DATA_BLOCKS_NEEDED)
+
+        if FREE_DATA_BLOCKS is None:
+            return False
+        
+        DATA_BITMAP_START = self.block_list[0]["data_bitmap_start"]
+        DATA_START = self.block_list[0]["data_start"]
+        for i in len(FREE_DATA_BLOCKS):
+            start, length = FREE_DATA_BLOCKS[i]
+            for j in range(length):
+                self.block_list[DATA_BITMAP_START][start + j] = True  # Mark data block as used
+                block_data = data[i*CHAR_BLOCK_SIZE:(i+1)*CHAR_BLOCK_SIZE]
+                self.block_list[DATA_START + start + j] = block_data  # Write data to block
+        file_inode.pointers = FREE_DATA_BLOCKS
+        
+
+        self.block_list[INODE_BLOCK_START][inode_index] = True  # Mark inode as used
+        return True
     
 
 def save_drive(drive: Drive, filename: str) -> None:
