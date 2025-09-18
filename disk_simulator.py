@@ -104,7 +104,8 @@ class Drive:
                     free_blocks.append((start, length))
                     start = None
                     length = 0
-
+        
+        print("ERROR")
         return None
     
     def write_file(self, data: str, file_inode: Inode, inode_index: int) -> bool:
@@ -119,13 +120,19 @@ class Drive:
         
         DATA_BITMAP_START = self.block_list[0]["data_bitmap_start"]
         DATA_START = self.block_list[0]["data_start"]
-        for i in len(FREE_DATA_BLOCKS):
-            start, length = FREE_DATA_BLOCKS[i]
+        data_offset = 0
+        for (start, length) in FREE_DATA_BLOCKS:
             for j in range(length):
                 self.block_list[DATA_BITMAP_START][start + j] = True  # Mark data block as used
-                block_data = data[i*CHAR_BLOCK_SIZE:(i+1)*CHAR_BLOCK_SIZE]
+                block_data = data[data_offset:data_offset+CHAR_BLOCK_SIZE]
                 self.block_list[DATA_START + start + j] = block_data  # Write data to block
+                data_offset += CHAR_BLOCK_SIZE
+
         file_inode.pointers = FREE_DATA_BLOCKS
+        file_inode.size = len(data)
+        file_inode.update_modified_time()
+        self.block_list[self.block_list[0]["inode_start"] + (inode_index // (self.block_list[0]["block_size"] // 256))][inode_index % (self.block_list[0]["block_size"] // 256)] = file_inode.__dict__
+
         
 
         self.block_list[INODE_BLOCK_START][inode_index] = True  # Mark inode as used
@@ -158,14 +165,6 @@ def load_drive(filename: str) -> Drive | None:
 if __name__ == "__main__":
     MainDrive = Drive(total_blocks=64)
     drive = MainDrive.block_list
-    inode = Inode(file_name="test.txt", file_type="file", size=1024, pointers=[(5,3), (12,1)], uid="user", time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), permissions=[7,5,5])
-    print(inode.blocks_used)
-
-    # Example usage of finding free data blocks
-    pointers = MainDrive.find_free_data_blocks(56)
-    data_start = MainDrive.block_list[0]["data_start"]
-    print(f"Data starts at block {data_start}")
-    for start, length in pointers:
-        print(f"Allocating {start+data_start} to {start+data_start+length-1}")
-
-    save_drive(MainDrive, "TEST.json")
+    test_inode = Inode("test.txt", "File", 1, [], "user", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), [7,7,7], [])
+    MainDrive.write_file("Hello, World! This is a test file.", test_inode, MainDrive.find_free_inode())
+    save_drive(MainDrive, "test_drive.json")
