@@ -6,7 +6,7 @@ import datetime
 SAVE_PATH = "drive_bay"
 
 class Inode:
-    def __init__(self,file_name: str, file_type: str, size: int, pointers: list[tuple], uid: str, time: str, permissions: list[int]) -> None:
+    def __init__(self,file_name: str, file_type: str, size: int, pointers: list[tuple], uid: str, time: str, permissions: list[int], mli_pointer: list = []) -> None:
         self.file_name = file_name                                              # Name of the file or directory
         self.file_type = file_type                                              # 'file' or 'directory'
         self.size = size                                                        # size in bytes
@@ -19,6 +19,14 @@ class Inode:
         self.blocks_used = 0
         self.update_blocks_used()                                               # Number of blocks used
         self.permissions = permissions                                          # 3 ints for user, group, others (rwx as 4+2+1)
+        self.mli_pointer = mli_pointer                                          # Pointers for Multi-Level Indexing (if needed)
+    
+    def __init__(self, pointers: list[tuple], mli_pointer: list = [], MLI_TRUE = True): # Multi-Level Indexing constructor
+        self.pointers = pointers
+        self.mli_pointer = mli_pointer
+        self.MLI_TRUE = MLI_TRUE
+        self.blocks_used = 0
+        self.update_blocks_used()
     
     def update_access_time(self) -> None:
         self.time_accessed = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -32,7 +40,7 @@ class Inode:
         self.update_modified_time()
     
     def update_blocks_used(self) -> None:
-        self.blocks_used = sum([b for a, b in self.pointers])
+        self.blocks_used = sum([b for a, b in self.pointers]) + (sum([blocks_used for blocks_used in self.mli_pointer]) if len(self.mli_pointer) > 0 else 0)
 
 class Drive:
     def __init__(self, total_blocks: int, block_list: list = None, block_size: int = 4096, inode_count: int = 80) -> None:
