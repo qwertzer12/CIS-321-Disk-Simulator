@@ -43,7 +43,7 @@ class Inode:
         self.blocks_used = sum([b for a, b in self.pointers])
 
 class Drive:
-    def __init__(self, total_blocks: int, block_list: list = None, block_size: int = 4096, inode_count: int = 80) -> None:
+    def __init__(self, name: str, total_blocks: int, block_list: list = None, block_size: int = 4096, inode_count: int = 80) -> None:
         self.block_list = block_list if block_list is not None else [None] * total_blocks
         inode_bitmap_start = 1
         data_bitmap_start = inode_bitmap_start + 1
@@ -54,6 +54,7 @@ class Drive:
 
 
         self.block_list[0] = { # Superblock
+            "name": name,
             "total_blocks": total_blocks,
             "block_size": block_size,
             "inode_bitmap_start": inode_bitmap_start,
@@ -76,6 +77,9 @@ class Drive:
         for i in range(self.block_list[0]["data_start"], total_blocks): # initialize data blocks
             self.block_list[i] = ''
 
+        root_inode = Inode(file_name='/', file_type='directory', size=0, pointers=[], uid='system', time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), permissions=[7,7,7])
+        self.write_inode('', root_inode, 0) # Create root directory inode
+
     def find_free_inode(self) -> int | None:
         inode_bitmap = self.block_list[self.block_list[0]["inode_bitmap_start"]]
         for i, used in enumerate(inode_bitmap):
@@ -89,6 +93,9 @@ class Drive:
         start = None
         length = 0
         progress = 0
+
+        if count <= 0:
+            return None
 
         for i, used in enumerate(data_bitmap):
             if not used:
@@ -111,6 +118,16 @@ class Drive:
     def write_inode(self, data: str, file_inode: Inode, inode_index: int) -> bool:
         INODE_BLOCK_START = self.block_list[0]["inode_bitmap_start"]
 
+        if file_inode.file_type == "directory":
+            # For directories, no data blocks are allocated, just set up the inode
+            file_inode.pointers = []
+            file_inode.size = 0
+            file_inode.update_modified_time()
+            self.block_list[self.block_list[0]["inode_start"] + (inode_index // (self.block_list[0]["block_size"] // 256))][inode_index % (self.block_list[0]["block_size"] // 256)] = file_inode.__dict__
+            self.block_list[INODE_BLOCK_START][inode_index] = True  # Mark inode as used
+            return True
+
+        # Otherwise, treat as file
         CHAR_BLOCK_SIZE = 32  # Number of characters per block
         DATA_BLOCKS_NEEDED = math.ceil(len(data) / CHAR_BLOCK_SIZE)
         FREE_DATA_BLOCKS = self.find_free_data_blocks(DATA_BLOCKS_NEEDED)
@@ -202,13 +219,13 @@ def load_drive(filename: str) -> Drive | None:
         return None
 
 if __name__ == "__main__":
-    MainDrive = Drive(total_blocks=64)
+    MainDrive = Drive("A", total_blocks=64)
     drive = MainDrive.block_list
     test_inode = Inode("test.txt", "File", 1, [], "user", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), [7,7,7], [])
     test_inode2 = Inode("test2.txt", "File", 1, [], "user", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), [7,7,7], [])
 
     MainDrive.write_inode("Hello, World! This is a test file.", test_inode, MainDrive.find_free_inode())
-    print(MainDrive.load_inode(0))
+    print(MainDrive.load_inode(1))
     MainDrive.write_inode("This is another test file.", test_inode2, MainDrive.find_free_inode())
 
     save_drive(MainDrive, "test_drive.json")

@@ -1,7 +1,7 @@
 import cmd2
 from disk_simulator import *
 
-mounted_drives: dict[str, Drive] = {"A": Drive(64), "B": Drive(128)}
+mounted_drives: dict[str, Drive] = {"A": Drive("A", 64), "B": Drive("B", 128)}
 drive_choices:list[str] = [f[:-5] for f in os.listdir(SAVE_PATH) if f.endswith(".json")] if os.path.exists(SAVE_PATH) else []
 
 class MyApp(cmd2.Cmd):
@@ -238,7 +238,7 @@ class MyApp(cmd2.Cmd):
 
     write_parser = cmd2.Cmd2ArgumentParser(description='Write data to a mounted drive.')
     write_parser.add_argument('path', nargs=1, help='Path of the drive to write to')
-    write_parser.add_argument('data', nargs='1', help='Data to write to the file. Enclose in quotes for multiple words.')
+    write_parser.add_argument('data', nargs=1, help='Data to write to the file. Enclose in quotes for multiple words.')
     @cmd2.with_argparser(write_parser)
     def do_write(self, args) -> None:
         self.poutput(args.path)
@@ -248,9 +248,31 @@ class MyApp(cmd2.Cmd):
             self.perror(f"Error: No drive is mounted at {path[0]}.")
             return
         data = args.data[0]
-        
+
         drive = mounted_drives[path[0]]
+
+        free_inode = drive.find_free_inode()
+        if free_inode is None:
+            self.perror("Error: No free inodes available.")
+            return
         
+        data_inode = Inode(
+            file_name=path[1:],
+            file_type="File",
+            size=len(data),
+            pointers=[],
+            uid="user",
+            time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            permissions=[7,7,7],
+            mli_pointer=[]
+        )
+
+        if not drive.write_inode(data, data_inode, free_inode):
+            self.perror("Error: Not enough space on drive to write data.")
+            return
+        self.poutput(f"Wrote data to {path} on drive.")
+        save_drive(drive, drive.block_list[0]["name"] + ".json")
+        return
         
 
 
