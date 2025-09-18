@@ -108,7 +108,7 @@ class Drive:
         print("ERROR")
         return None
     
-    def write_file(self, data: str, file_inode: Inode, inode_index: int) -> bool:
+    def write_inode(self, data: str, file_inode: Inode, inode_index: int) -> bool:
         INODE_BLOCK_START = self.block_list[0]["inode_bitmap_start"]
 
         CHAR_BLOCK_SIZE = 32  # Number of characters per block
@@ -136,6 +136,32 @@ class Drive:
         
 
         self.block_list[INODE_BLOCK_START][inode_index] = True  # Mark inode as used
+        return True
+    
+    def load_inode(self, inode_index: int) -> str | None:
+        inode_bitmap = self.block_list[self.block_list[0]["inode_bitmap_start"]]
+        if not inode_bitmap[inode_index]:
+            return None
+        
+        data_inode = self.block_list[self.block_list[0]["inode_start"] + (inode_index // (self.block_list[0]["block_size"] // 256))][inode_index % (self.block_list[0]["block_size"] // 256)]
+        data = ""
+        for (start, length) in data_inode["pointers"]:
+            for j in range(length):
+                data += self.block_list[self.block_list[0]["data_start"] + start + j]
+        return data
+    
+    def delete_inode(self, inode_index: int) -> bool:
+        inode_bitmap = self.block_list[self.block_list[0]["inode_bitmap_start"]]
+        data_bitmap = self.block_list[self.block_list[0]["data_bitmap_start"]]
+        if not inode_bitmap[inode_index]:
+            return False
+        data_inode = self.block_list[self.block_list[0]["inode_start"] + (inode_index // (self.block_list[0]["block_size"] // 256))][inode_index % (self.block_list[0]["block_size"] // 256)]
+        for (start, length) in data_inode["pointers"]:
+            for j in range(length):
+                data_bitmap[start + j] = False  # Mark data block as free
+
+        inode_bitmap[inode_index] = False  # Mark inode as free
+        
         return True
     
 
@@ -166,5 +192,9 @@ if __name__ == "__main__":
     MainDrive = Drive(total_blocks=64)
     drive = MainDrive.block_list
     test_inode = Inode("test.txt", "File", 1, [], "user", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), [7,7,7], [])
-    MainDrive.write_file("Hello, World! This is a test file.", test_inode, MainDrive.find_free_inode())
+    MainDrive.write_inode("Hello, World! This is a test file.", test_inode, MainDrive.find_free_inode())
+    print(MainDrive.load_inode(0))
+    print(MainDrive.delete_inode(0))
+    print(MainDrive.load_inode(0))
+
     save_drive(MainDrive, "test_drive.json")
