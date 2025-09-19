@@ -407,6 +407,14 @@ class MyApp(cmd2.Cmd):
 
 
 
+
+    rmdir_parser = cmd2.Cmd2ArgumentParser(description='Remove a directory from a mounted drive.')
+    rmdir_parser.add_argument('path', nargs=1, help='Path of the directory to remove (e.g., A:/mydir)')
+    @cmd2.with_argparser(rmdir_parser)
+    def do_rmdir(self, args) -> None:
+        pass
+
+
     def do_exit(self, args) -> bool:
         """Exit the application."""
         print("Goodbye!")
