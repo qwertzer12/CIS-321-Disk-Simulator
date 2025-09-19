@@ -128,7 +128,7 @@ class MyApp(cmd2.Cmd):
             else:
                 inode = int(answer)
 
-        save_drive(Drive(block, None, size, inode), name + ".json")
+        save_drive(Drive(name, block, None, size, inode), name + ".json")
         drive_choices.append(name)
         self.poutput(f"Created new drive: {name}, {block} blocks in {size} byte increments.\n Remember to mount the new drive.")
 
@@ -257,7 +257,7 @@ class MyApp(cmd2.Cmd):
             return
         
         data_inode = Inode(
-            file_name=path[1:],
+            file_name=path[2:],
             file_type="File",
             size=len(data),
             pointers=[],
@@ -275,6 +275,100 @@ class MyApp(cmd2.Cmd):
         return
         
 
+
+
+    mkdir_parser = cmd2.Cmd2ArgumentParser(description='Create a directory on a mounted drive.')
+    mkdir_parser.add_argument('path', nargs=1, help='Path of the directory to create (e.g., A:/mydir)')
+    @cmd2.with_argparser(mkdir_parser)
+    def do_mkdir(self, args) -> None:
+        path = args.path[0]
+        
+        # Validate drive letter format (must be single uppercase letter)
+        if len(path) < 1 or not path[0].isalpha():
+            self.perror("Error: Drive letter must be a single letter (A-Z).")
+            return
+        
+        drive_letter = path[0].upper()
+        
+        # Check if drive is mounted
+        if drive_letter not in mounted_drives:
+            self.perror(f"Error: No drive is mounted at {drive_letter}.")
+            return
+        
+        # Validate path format (must be drive:/ followed by directory name)
+        if len(path) < 4 or path[1:3] != ":/":
+            self.perror("Error: Invalid path format. Use format 'A:/dirname'.")
+            return
+        
+        # Extract directory name and validate it's not empty or just "/"
+        dir_name = path[3:]
+        if dir_name == "" or dir_name == "/":
+            self.perror("Error: Directory name cannot be empty or just '/'.")
+            return
+        
+        # Validate directory name characters (no invalid filesystem characters)
+        invalid_chars = ['<', '>', ':', '"', '|', '?', '*', '\\']
+        if any(char in dir_name for char in invalid_chars):
+            self.perror(f"Error: Directory name contains invalid characters: {', '.join(invalid_chars)}")
+            return
+        
+        # Validate directory name length (reasonable limit)
+        if len(dir_name) > 255:
+            self.perror("Error: Directory name too long (maximum 255 characters).")
+            return
+        
+        # Validate no leading/trailing spaces or dots
+        if dir_name.startswith(' ') or dir_name.endswith(' '):
+            self.perror("Error: Directory name cannot start or end with spaces.")
+            return
+        if dir_name.startswith('.') or dir_name.endswith('.'):
+            self.perror("Error: Directory name cannot start or end with dots.")
+            return
+        
+        drive = mounted_drives[drive_letter]
+        
+        # Check if directory already exists
+        existing_inode = drive.find_file(path)
+        if existing_inode is not None:
+            self.perror(f"Error: Directory '{dir_name}' already exists.")
+            return
+        
+        if '/' in dir_name:
+            parts = dir_name.split('/')
+            if len(parts) > 2:  # Only allow one level of nesting for simplicity
+                self.perror("Error: Deep nested directories not supported. Create parent directories first.")
+                return
+            parent_path = f"{drive_letter}:/{parts[0]}"
+            if drive.find_file(parent_path) is None:
+                self.perror(f"Error: Parent directory '{parts[0]}' does not exist.")
+                return
+        
+        # Check for available inodes
+        free_inode = drive.find_free_inode()
+        if free_inode is None:
+            self.perror("Error: No free inodes available.")
+            return
+        
+        # Create directory inode
+        dir_inode = Inode(
+            file_name=path[2:],  # Store full path like 'A:/foo/bar'
+            file_type="Directory",
+            size=0,
+            pointers=[],
+            uid="user",
+            time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            permissions=[7,7,7],
+            mli_pointer=[]
+        )
+        
+        # Write the inode to disk
+        if not drive.write_inode('', dir_inode, free_inode):
+            self.perror("Error: Not enough space on drive to create directory.")
+            return
+        
+        self.poutput(f"Created directory '{dir_name}' on drive {drive_letter}.")
+        save_drive(drive, drive.block_list[0]["name"] + ".json")
+        return
 
 
 

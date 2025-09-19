@@ -118,7 +118,7 @@ class Drive:
     def write_inode(self, data: str, file_inode: Inode, inode_index: int) -> bool:
         INODE_BLOCK_START = self.block_list[0]["inode_bitmap_start"]
 
-        if file_inode.file_type == "directory":
+        if file_inode.file_type.lower() == "directory":
             # For directories, no data blocks are allocated, just set up the inode
             file_inode.pointers = []
             file_inode.size = 0
