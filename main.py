@@ -251,6 +251,41 @@ class MyApp(cmd2.Cmd):
 
         drive = mounted_drives[path[0]]
 
+        # Validate path format
+        if len(path) < 4 or path[1:3] != ":/":
+            self.perror("Error: Invalid path format. Use format 'A:/filename' or 'A:/dirname/filename'.")
+            return
+
+        # Extract the file path after drive:/
+        file_path = path[3:]
+        
+        # Check if file is being written to a subdirectory
+        if '/' in file_path:
+            # Extract directory path
+            dir_parts = file_path.split('/')[:-1]  # Get all parts except the filename
+            dir_path = '/'.join(dir_parts)
+            full_dir_path = f"{path[0]}:/{dir_path}"
+            
+            # Check if the directory exists
+            if drive.find_file(full_dir_path) is None:
+                self.perror(f"Error: Directory '{dir_path}' does not exist. Create the directory first using mkdir.")
+                return
+            
+            # Check if the found path is actually a directory
+            dir_inode_index = drive.find_file(full_dir_path)
+            if dir_inode_index is not None:
+                inode_start = drive.block_list[0]["inode_start"]
+                inode_per_block = drive.block_list[0]["block_size"] // 256
+                dir_inode = drive.block_list[inode_start + (dir_inode_index // inode_per_block)][dir_inode_index % inode_per_block]
+                if dir_inode["file_type"].lower() != "directory":
+                    self.perror(f"Error: '{dir_path}' is not a directory.")
+                    return
+
+        # Check if file already exists
+        if drive.find_file(path) is not None:
+            self.perror(f"Error: File '{file_path}' already exists.")
+            return
+
         free_inode = drive.find_free_inode()
         if free_inode is None:
             self.perror("Error: No free inodes available.")
