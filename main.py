@@ -1,15 +1,22 @@
 import cmd2
 from disk_simulator import *
 
-mounted_drives: dict[str, Drive] = {"A": Drive("A", 64), "B": Drive("B", 128)}
-drive_choices:list[str] = [f[:-5] for f in os.listdir(SAVE_PATH) if f.endswith(".json")] if os.path.exists(SAVE_PATH) else []
+# Global state for the file system simulator
+mounted_drives: dict[str, Drive] = {"A": Drive("A", 64), "B": Drive("B", 128)}  # Pre-mount sample drives
+drive_choices:list[str] = [f[:-5] for f in os.listdir(SAVE_PATH) if f.endswith(".json")] if os.path.exists(SAVE_PATH) else []  # Available drive files
+pwd = {"drive": None, "path": "/"}  # Current working directory state
 
 class MyApp(cmd2.Cmd):
-    """A simple command-line application using cmd2."""
+    """
+    Command-line interface for the virtual file system simulator.
+    Provides Unix-like commands for managing virtual drives and files.
+    """
     def __init__(self) -> None:
         super().__init__()
         self.intro = "Welcome to MyApp! Type help or ? to list commands.\n"
         self.prompt = "AFS$ "
+    
+    # Remove unwanted cmd2 built-in commands for security/simplicity
     delattr(cmd2.Cmd, 'do_shell')
     delattr(cmd2.Cmd, 'do_run_pyscript')
     delattr(cmd2.Cmd, 'do_run_script')
@@ -17,8 +24,7 @@ class MyApp(cmd2.Cmd):
     delattr(cmd2.Cmd, 'do_edit')
 
 
-
-
+    # Sample command demonstrating cmd2 argument parsing
     greet_parser = cmd2.Cmd2ArgumentParser(description='Greet the user.')
     greet_parser.add_argument('-g', '--goodbye', action='store_true', help='switch to say goodbye')
     greet_parser.add_argument('name', nargs='+', help='name of the person to greet')
@@ -30,12 +36,12 @@ class MyApp(cmd2.Cmd):
             self.poutput(f"Hello, {' '.join(args.name)}!")
 
 
-
-
+    # File system management commands
     lsblk_parser = cmd2.Cmd2ArgumentParser(description='List block devices.')
     lsblk_parser.add_argument('-a', '--all', action='store_true', help='include unmounted devices')
     @cmd2.with_argparser(lsblk_parser)
     def do_lsblk(self, args) -> None:
+        """Display mounted drives and optionally available drive files."""
         mode = "all" if args.all else "mounted only"
         self.poutput(f"Mode: {mode}")
 
@@ -71,6 +77,7 @@ class MyApp(cmd2.Cmd):
 
 
 
+    # Drive creation command with validation and interactive prompts
     mkdrive_parser = cmd2.Cmd2ArgumentParser(description='Create a new virtual drive.')
     mkdrive_parser.add_argument('-b', '--block', type=int, help='Size of the new drive in blocks (must be at least 32)', default=None)
     mkdrive_parser.add_argument('-s', '--size', type=int, help='Size of the blocks in bytes (default 4096)', default=4096)
@@ -78,12 +85,14 @@ class MyApp(cmd2.Cmd):
     mkdrive_parser.add_argument('name', nargs=1, help='Name of the new drive')
     @cmd2.with_argparser(mkdrive_parser)
     def do_mkdrive(self, args) -> None:
+        """Create a new virtual drive with specified parameters, prompting for missing values."""
         name = args.name[0].upper() if args.name[0].isalpha() else args.name[0]
 
         block = args.block
         size = args.size
         inode = args.inode
 
+        # Interactive validation loops for missing or invalid parameters
         while block is None:
             self.poutput("Enter block count:")
             answer = input()
@@ -153,11 +162,13 @@ class MyApp(cmd2.Cmd):
 
 
 
+    # Drive mounting system - load drive files into memory for access
     mount_parser = cmd2.Cmd2ArgumentParser(description='Mount a virtual drive.')
     mount_parser.add_argument('-p', '--path', type=str, help='Path to mount the drive')
     mount_parser.add_argument('name', nargs=1, choices=drive_choices, help='Name of the drive to mount')
     @cmd2.with_argparser(mount_parser)
     def do_mount(self, args) -> None:
+        """Load a drive file and make it accessible at a specified mount point."""
         path = args.path.upper() if args.path and args.path.isalpha() else args.path if args.path else None
         name = args.name[0]
 
@@ -212,13 +223,15 @@ class MyApp(cmd2.Cmd):
         drive = mounted_drives[path]
         self.poutput(f"Contents of drive at {path}:")
         data_start = drive.block_list[0]["data_start"]
+        
+        # Create visual representation of data block usage
         display: list[str] = []
         message = ""
         for i in range(data_start, drive.block_list[0]["total_blocks"]):
             if drive.block_list[i] == '':
-                message += "-"
+                message += "-"  # Empty block
             else:
-                message += "#"
+                message += "#"  # Used block
             if len(message) == 8:
                 display.append(message)
                 message = ""
@@ -234,13 +247,13 @@ class MyApp(cmd2.Cmd):
                 print_chain = []
 
     
-
-
+    # File creation and writing system with path validation
     write_parser = cmd2.Cmd2ArgumentParser(description='Write data to a mounted drive.')
     write_parser.add_argument('path', nargs=1, help='Path of the drive to write to')
     write_parser.add_argument('data', nargs=1, help='Data to write to the file. Enclose in quotes for multiple words.')
     @cmd2.with_argparser(write_parser)
     def do_write(self, args) -> None:
+        """Write data to a file on a mounted drive, creating or overwriting as needed."""
         self.poutput(args.path)
         self.poutput(args.data)
         path = args.path[0]
@@ -263,28 +276,47 @@ class MyApp(cmd2.Cmd):
         if '/' in file_path:
             # Extract directory path
             dir_parts = file_path.split('/')[:-1]  # Get all parts except the filename
-            dir_path = '/'.join(dir_parts)
-            full_dir_path = f"{path[0]}:/{dir_path}"
             
-            # Check if the directory exists
-            if drive.find_file(full_dir_path) is None:
-                self.perror(f"Error: Directory '{dir_path}' does not exist. Create the directory first using mkdir.")
-                return
-            
-            # Check if the found path is actually a directory
-            dir_inode_index = drive.find_file(full_dir_path)
-            if dir_inode_index is not None:
-                inode_start = drive.block_list[0]["inode_start"]
-                inode_per_block = drive.block_list[0]["block_size"] // 256
-                dir_inode = drive.block_list[inode_start + (dir_inode_index // inode_per_block)][dir_inode_index % inode_per_block]
-                if dir_inode["file_type"].lower() != "directory":
-                    self.perror(f"Error: '{dir_path}' is not a directory.")
+            # Validate all parent directories exist
+            current_path_without_drive = "/"
+            for i, part in enumerate(dir_parts):
+                current_path_without_drive += part
+                
+                # Check if the directory exists
+                if drive.find_file(current_path_without_drive) is None:
+                    dir_path = '/'.join(dir_parts[:i+1])
+                    self.perror(f"Error: Directory '{dir_path}' does not exist. Create the directory first using mkdir.")
                     return
+                
+                # Check if the found path is actually a directory
+                dir_inode_index = drive.find_file(current_path_without_drive)
+                if dir_inode_index is not None:
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    dir_inode = drive.block_list[inode_start + (dir_inode_index // inode_per_block)][dir_inode_index % inode_per_block]
+                    if dir_inode["file_type"].lower() != "directory":
+                        dir_path = '/'.join(dir_parts[:i+1])
+                        self.perror(f"Error: '{dir_path}' is not a directory.")
+                        return
+                
+                current_path_without_drive += "/"
 
         # Check if file already exists
-        if drive.find_file(path) is not None:
-            self.perror(f"Error: File '{file_path}' already exists.")
-            return
+        existing_inode_index = drive.find_file(f"/{file_path}")
+        if existing_inode_index is not None:
+            # File exists - delete the old one to allow overwriting
+            inode_start = drive.block_list[0]["inode_start"]
+            inode_per_block = drive.block_list[0]["block_size"] // 256
+            existing_inode = drive.block_list[inode_start + (existing_inode_index // inode_per_block)][existing_inode_index % inode_per_block]
+            
+            # Check if it's actually a file (not a directory)
+            if existing_inode["file_type"].lower() == "directory":
+                self.perror(f"Error: '{file_path}' is a directory, not a file.")
+                return
+            
+            # Delete the existing file
+            drive.delete_inode(existing_inode_index)
+            self.poutput(f"Overwriting existing file '{file_path}'.")
 
         free_inode = drive.find_free_inode()
         if free_inode is None:
@@ -292,7 +324,7 @@ class MyApp(cmd2.Cmd):
             return
         
         data_inode = Inode(
-            file_name=path[2:],
+            file_name=f"/{file_path}",  # Store path without drive like "/foo/bar/file.txt"
             file_type="File",
             size=len(data),
             pointers=[],
@@ -311,11 +343,12 @@ class MyApp(cmd2.Cmd):
         
 
 
-
+    # Directory creation with extensive path validation
     mkdir_parser = cmd2.Cmd2ArgumentParser(description='Create a directory on a mounted drive.')
     mkdir_parser.add_argument('path', nargs=1, help='Path of the directory to create (e.g., A:/mydir)')
     @cmd2.with_argparser(mkdir_parser)
     def do_mkdir(self, args) -> None:
+        """Create a directory with comprehensive validation of path format and parent directories."""
         path = args.path[0]
         
         # Validate drive letter format (must be single uppercase letter)
@@ -363,20 +396,32 @@ class MyApp(cmd2.Cmd):
         drive = mounted_drives[drive_letter]
         
         # Check if directory already exists
-        existing_inode = drive.find_file(path)
+        existing_inode = drive.find_file(f"/{dir_name}")
         if existing_inode is not None:
             self.perror(f"Error: Directory '{dir_name}' already exists.")
             return
         
+        # Validate parent directories exist for nested paths
         if '/' in dir_name:
             parts = dir_name.split('/')
-            if len(parts) > 2:  # Only allow one level of nesting for simplicity
-                self.perror("Error: Deep nested directories not supported. Create parent directories first.")
-                return
-            parent_path = f"{drive_letter}:/{parts[0]}"
-            if drive.find_file(parent_path) is None:
-                self.perror(f"Error: Parent directory '{parts[0]}' does not exist.")
-                return
+            # Check each parent directory exists
+            current_path_without_drive = "/"
+            for i, part in enumerate(parts[:-1]):  # All parts except the last (which we're creating)
+                current_path_without_drive += part
+                if drive.find_file(current_path_without_drive) is None:
+                    self.perror(f"Error: Parent directory '{'/'.join(parts[:i+1])}' does not exist. Create parent directories first.")
+                    return
+                
+                # Verify it's actually a directory
+                parent_inode_index = drive.find_file(current_path_without_drive)
+                if parent_inode_index is not None:
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    parent_inode = drive.block_list[inode_start + (parent_inode_index // inode_per_block)][parent_inode_index % inode_per_block]
+                    if parent_inode["file_type"].lower() != "directory":
+                        self.perror(f"Error: '{'/'.join(parts[:i+1])}' is not a directory.")
+                        return
+                current_path_without_drive += "/"
         
         # Check for available inodes
         free_inode = drive.find_free_inode()
@@ -386,7 +431,7 @@ class MyApp(cmd2.Cmd):
         
         # Create directory inode
         dir_inode = Inode(
-            file_name=path[2:],  # Store full path like 'A:/foo/bar'
+            file_name=f"/{dir_name}",  # Store path without drive like "/foo/bar"
             file_type="Directory",
             size=0,
             pointers=[],
@@ -413,6 +458,180 @@ class MyApp(cmd2.Cmd):
     @cmd2.with_argparser(rmdir_parser)
     def do_rmdir(self, args) -> None:
         pass
+
+
+    # Directory listing with support for relative and absolute paths
+    ls_parser = cmd2.Cmd2ArgumentParser(description='List directory contents.')
+    ls_parser.add_argument('path', nargs='?', help='Optional directory path to list (e.g., A:/, A:/mydir, mydir)')
+    @cmd2.with_argparser(ls_parser)
+    def do_ls(self, args) -> None:
+        """List directory contents for the current working directory or specified path."""
+        target_path = args.path if args.path else None
+        
+        # If no path specified, use current working directory
+        if target_path is None:
+            if pwd["drive"] is None:
+                self.perror("Error: No current directory set. Please specify a path like 'A:/' or mount a drive and use 'cd'.")
+                return
+            target_path = f"{pwd['drive']}:{pwd['path']}"
+        
+        # Resolve path (handle relative paths)
+        resolved_path = self._resolve_path(target_path)
+        if resolved_path is None:
+            return
+        
+        # Parse drive and directory path
+        if len(resolved_path) < 3 or resolved_path[1:3] != ":/":
+            self.perror("Error: Invalid path format. Use format 'A:/' or 'A:/dirname'.")
+            return
+        
+        drive_letter = resolved_path[0].upper()
+        dir_path = resolved_path[3:] if len(resolved_path) > 3 else ""
+        
+        # Check if drive is mounted
+        if drive_letter not in mounted_drives:
+            self.perror(f"Error: No drive is mounted at {drive_letter}.")
+            return
+        
+        drive = mounted_drives[drive_letter]
+        
+        # List files and directories
+        self._list_directory_contents(drive, drive_letter, dir_path)
+    
+    def _resolve_path(self, path: str) -> str | None:
+        """
+        Resolve relative paths to absolute paths using current working directory.
+        Handles ., .., and relative paths appropriately.
+        """
+        if path.startswith('/'):
+            # Absolute path without drive - use current drive
+            if pwd["drive"] is None:
+                self.perror("Error: No current directory set. Please specify a drive letter.")
+                return None
+            return f"{pwd['drive']}:{path}"
+        elif ':' in path:
+            # Already absolute path with drive
+            return path
+        else:
+            # Relative path - combine with current directory
+            if pwd["drive"] is None:
+                self.perror("Error: No current directory set. Please specify a drive letter.")
+                return None
+            
+            # Combine current path with relative path
+            current_path = pwd["path"].rstrip('/')
+            if current_path == "":
+                current_path = "/"
+            
+            if path == "." or path == "":
+                return f"{pwd['drive']}:{current_path}"
+            elif path == "..":
+                # Go up one directory
+                if current_path == "/":
+                    return f"{pwd['drive']}:/"
+                else:
+                    parent_path = "/".join(current_path.split("/")[:-1])
+                    if parent_path == "":
+                        parent_path = "/"
+                    return f"{pwd['drive']}:{parent_path}"
+            else:
+                # Regular relative path
+                if current_path == "/":
+                    return f"{pwd['drive']}:/{path}"
+                else:
+                    return f"{pwd['drive']}:{current_path}/{path}"
+    
+    def _list_directory_contents(self, drive: Drive, drive_letter: str, dir_path: str) -> None:
+        """
+        List the contents of a directory by scanning inodes for matching file paths.
+        Displays files and directories in a formatted table with type, name, size, and modification time.
+        """
+        # Determine what we're looking for
+        if dir_path == "":
+            # Root directory
+            current_dir = "/"
+            target_prefix = "/"
+        else:
+            # Subdirectory
+            current_dir = f"/{dir_path}"
+            target_prefix = f"/{dir_path}/"
+        
+        # Check if the target directory exists (unless it's root)
+        if dir_path != "":
+            target_full_path = f"/{dir_path}"
+            dir_inode_index = drive.find_file(target_full_path)
+            if dir_inode_index is None:
+                self.perror(f"Error: Directory '{dir_path}' does not exist.")
+                return
+            
+            # Verify it's actually a directory
+            inode_start = drive.block_list[0]["inode_start"]
+            inode_per_block = drive.block_list[0]["block_size"] // 256
+            dir_inode = drive.block_list[inode_start + (dir_inode_index // inode_per_block)][dir_inode_index % inode_per_block]
+            if dir_inode["file_type"].lower() != "directory":
+                self.perror(f"Error: '{dir_path}' is not a directory.")
+                return
+        
+        # Collect all files and directories by scanning inode table
+        items = []
+        inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+        inode_start = drive.block_list[0]["inode_start"]
+        inode_per_block = drive.block_list[0]["block_size"] // 256
+        
+        for i in range(len(inode_bitmap)):
+            if inode_bitmap[i]:
+                inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                file_name = inode["file_name"]
+                file_type = inode["file_type"]
+                
+                # Skip free inodes and the root directory itself
+                if file_type == "free" or file_name == "/":
+                    continue
+                
+                # For root directory listing
+                if dir_path == "":
+                    # Show items directly in root (like /test, not /test/something)
+                    if file_name.startswith("/") and file_name != "/":
+                        # Remove the leading slash for display
+                        display_name = file_name[1:]
+                        # Only show direct children (no further slashes)
+                        if "/" not in display_name:
+                            items.append({
+                                "name": display_name,
+                                "type": file_type,
+                                "size": inode["size"],
+                                "modified": inode["time_modified"]
+                            })
+                else:
+                    # For subdirectory listing
+                    if file_name.startswith(target_prefix):
+                        # Get the relative name after the directory prefix
+                        relative_name = file_name[len(target_prefix):]
+                        # Only show direct children (no further slashes)
+                        if "/" not in relative_name and relative_name != "":
+                            items.append({
+                                "name": relative_name,
+                                "type": file_type,
+                                "size": inode["size"],
+                                "modified": inode["time_modified"]
+                            })
+        
+        # Display results in formatted table
+        if not items:
+            self.poutput(f"Directory '{drive_letter}:{current_dir}' is empty.")
+            return
+        
+        self.poutput(f"Contents of '{drive_letter}:{current_dir}':")
+        self.poutput(f"{'Type':<10} {'Name':<20} {'Size':<8} {'Modified'}")
+        self.poutput("-" * 60)
+        
+        # Sort items: directories first, then files, both alphabetically
+        items.sort(key=lambda x: (x["type"].lower() != "directory", x["name"].lower()))
+        
+        for item in items:
+            type_display = "DIR" if item["type"].lower() == "directory" else "FILE"
+            size_display = "-" if item["type"].lower() == "directory" else str(item["size"])
+            self.poutput(f"{type_display:<10} {item['name']:<20} {size_display:<8} {item['modified']}")
 
 
     def do_exit(self, args) -> bool:
