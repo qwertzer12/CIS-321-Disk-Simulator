@@ -250,12 +250,19 @@ class MyApp(cmd2.Cmd):
     # File creation and writing system with path validation
     write_parser = cmd2.Cmd2ArgumentParser(description='Write data to a mounted drive.')
     write_parser.add_argument('path', nargs=1, help='Path of the file to write to (e.g., A:/file.txt, file.txt, ../file.txt)')
-    write_parser.add_argument('data', nargs=1, help='Data to write to the file. Enclose in quotes for multiple words.')
+    write_parser.add_argument('data', nargs='?', help='Data to write to the file. Enclose in quotes for multiple words. If not provided, you will be prompted to enter the data.')
     @cmd2.with_argparser(write_parser)
     def do_write(self, args) -> None:
         """Write data to a file on a mounted drive, creating or overwriting as needed."""
         target_path = args.path[0]
-        data = args.data[0]
+        data = args.data if args.data else None
+        
+        # If no data provided, prompt user for input
+        if data is None:
+            self.poutput("Enter the data to write to the file (press Enter when done):")
+            data = input()
+            if data is None:
+                data = ""  # Handle case where user presses Ctrl+C or similar
 
         # Resolve path (handle relative paths using current working directory)
         resolved_path = self._resolve_path(target_path)

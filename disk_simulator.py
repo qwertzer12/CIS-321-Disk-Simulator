@@ -167,6 +167,17 @@ class Drive:
 
         # File handling: allocate data blocks and write content
         CHAR_BLOCK_SIZE = 32  # Number of characters per data block (small for demo purposes)
+        
+        # Handle empty files specially
+        if len(data) == 0:
+            # For empty files, no data blocks are needed, just create the inode
+            file_inode.pointers = []
+            file_inode.size = 0
+            file_inode.update_modified_time()
+            self.block_list[self.block_list[0]["inode_start"] + (inode_index // (self.block_list[0]["block_size"] // 256))][inode_index % (self.block_list[0]["block_size"] // 256)] = file_inode.__dict__
+            self.block_list[INODE_BLOCK_START][inode_index] = True  # Mark inode as used
+            return True
+        
         DATA_BLOCKS_NEEDED = math.ceil(len(data) / CHAR_BLOCK_SIZE)
         FREE_DATA_BLOCKS = self.find_free_data_blocks(DATA_BLOCKS_NEEDED)
 
