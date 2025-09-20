@@ -249,57 +249,65 @@ class MyApp(cmd2.Cmd):
     
     # File creation and writing system with path validation
     write_parser = cmd2.Cmd2ArgumentParser(description='Write data to a mounted drive.')
-    write_parser.add_argument('path', nargs=1, help='Path of the drive to write to')
+    write_parser.add_argument('path', nargs=1, help='Path of the file to write to (e.g., A:/file.txt, file.txt, ../file.txt)')
     write_parser.add_argument('data', nargs=1, help='Data to write to the file. Enclose in quotes for multiple words.')
     @cmd2.with_argparser(write_parser)
     def do_write(self, args) -> None:
         """Write data to a file on a mounted drive, creating or overwriting as needed."""
-        self.poutput(args.path)
-        self.poutput(args.data)
-        path = args.path[0]
-        if path[0] not in mounted_drives:
-            self.perror(f"Error: No drive is mounted at {path[0]}.")
-            return
+        target_path = args.path[0]
         data = args.data[0]
 
-        drive = mounted_drives[path[0]]
-
-        # Validate path format
-        if len(path) < 4 or path[1:3] != ":/":
-            self.perror("Error: Invalid path format. Use format 'A:/filename' or 'A:/dirname/filename'.")
+        # Resolve path (handle relative paths using current working directory)
+        resolved_path = self._resolve_path(target_path)
+        if resolved_path is None:
             return
 
-        # Extract the file path after drive:/
-        file_path = path[3:]
+        # Parse drive and file path
+        if len(resolved_path) < 3 or resolved_path[1:3] != ":/":
+            self.perror("Error: Invalid path format. Use format 'A:/filename' or relative paths like 'filename'.")
+            return
+
+        drive_letter = resolved_path[0].upper()
+        file_path = resolved_path[3:] if len(resolved_path) > 3 else ""
+
+        # Check if drive is mounted
+        if drive_letter not in mounted_drives:
+            self.perror(f"Error: No drive is mounted at {drive_letter}.")
+            return
+
+        drive = mounted_drives[drive_letter]
+
+        # Validate that we have a filename
+        if file_path == "":
+            self.perror("Error: Please specify a filename to write to.")
+            return
         
         # Check if file is being written to a subdirectory
         if '/' in file_path:
-            # Extract directory path
+            # Extract directory path from the resolved absolute path
             dir_parts = file_path.split('/')[:-1]  # Get all parts except the filename
             
-            # Validate all parent directories exist
-            current_path_without_drive = "/"
-            for i, part in enumerate(dir_parts):
-                current_path_without_drive += part
+            # Validate all parent directories exist using absolute paths
+            for i in range(len(dir_parts)):
+                # Build the absolute directory path up to this point
+                dir_path_check = '/' + '/'.join(dir_parts[:i+1])
                 
                 # Check if the directory exists
-                if drive.find_file(current_path_without_drive) is None:
-                    dir_path = '/'.join(dir_parts[:i+1])
-                    self.perror(f"Error: Directory '{dir_path}' does not exist. Create the directory first using mkdir.")
+                if drive.find_file(dir_path_check) is None:
+                    display_dir_path = '/'.join(dir_parts[:i+1])
+                    self.perror(f"Error: Directory '{display_dir_path}' does not exist. Create the directory first using mkdir.")
                     return
                 
                 # Check if the found path is actually a directory
-                dir_inode_index = drive.find_file(current_path_without_drive)
+                dir_inode_index = drive.find_file(dir_path_check)
                 if dir_inode_index is not None:
                     inode_start = drive.block_list[0]["inode_start"]
                     inode_per_block = drive.block_list[0]["block_size"] // 256
                     dir_inode = drive.block_list[inode_start + (dir_inode_index // inode_per_block)][dir_inode_index % inode_per_block]
                     if dir_inode["file_type"].lower() != "directory":
-                        dir_path = '/'.join(dir_parts[:i+1])
-                        self.perror(f"Error: '{dir_path}' is not a directory.")
+                        display_dir_path = '/'.join(dir_parts[:i+1])
+                        self.perror(f"Error: '{display_dir_path}' is not a directory.")
                         return
-                
-                current_path_without_drive += "/"
 
         # Check if file already exists
         existing_inode_index = drive.find_file(f"/{file_path}")
@@ -337,7 +345,7 @@ class MyApp(cmd2.Cmd):
         if not drive.write_inode(data, data_inode, free_inode):
             self.perror("Error: Not enough space on drive to write data.")
             return
-        self.poutput(f"Wrote data to {path} on drive.")
+        self.poutput(f"Wrote data to {resolved_path} on drive.")
         save_drive(drive, drive.block_list[0]["name"] + ".json")
         return
         
@@ -345,31 +353,31 @@ class MyApp(cmd2.Cmd):
 
     # Directory creation with extensive path validation
     mkdir_parser = cmd2.Cmd2ArgumentParser(description='Create a directory on a mounted drive.')
-    mkdir_parser.add_argument('path', nargs=1, help='Path of the directory to create (e.g., A:/mydir)')
+    mkdir_parser.add_argument('path', nargs=1, help='Path of the directory to create (e.g., A:/mydir, mydir, ../mydir)')
     @cmd2.with_argparser(mkdir_parser)
     def do_mkdir(self, args) -> None:
         """Create a directory with comprehensive validation of path format and parent directories."""
-        path = args.path[0]
+        target_path = args.path[0]
         
-        # Validate drive letter format (must be single uppercase letter)
-        if len(path) < 1 or not path[0].isalpha():
-            self.perror("Error: Drive letter must be a single letter (A-Z).")
+        # Resolve path (handle relative paths using current working directory)
+        resolved_path = self._resolve_path(target_path)
+        if resolved_path is None:
             return
-        
-        drive_letter = path[0].upper()
-        
+
+        # Parse drive and directory path
+        if len(resolved_path) < 3 or resolved_path[1:3] != ":/":
+            self.perror("Error: Invalid path format. Use format 'A:/dirname' or relative paths like 'dirname'.")
+            return
+
+        drive_letter = resolved_path[0].upper()
+        dir_name = resolved_path[3:] if len(resolved_path) > 3 else ""
+
         # Check if drive is mounted
         if drive_letter not in mounted_drives:
             self.perror(f"Error: No drive is mounted at {drive_letter}.")
             return
         
-        # Validate path format (must be drive:/ followed by directory name)
-        if len(path) < 4 or path[1:3] != ":/":
-            self.perror("Error: Invalid path format. Use format 'A:/dirname'.")
-            return
-        
-        # Extract directory name and validate it's not empty or just "/"
-        dir_name = path[3:]
+        # Validate that we have a directory name
         if dir_name == "" or dir_name == "/":
             self.perror("Error: Directory name cannot be empty or just '/'.")
             return
@@ -446,7 +454,7 @@ class MyApp(cmd2.Cmd):
             self.perror("Error: Not enough space on drive to create directory.")
             return
         
-        self.poutput(f"Created directory '{dir_name}' on drive {drive_letter}.")
+        self.poutput(f"Created directory '{resolved_path}'.")
         save_drive(drive, drive.block_list[0]["name"] + ".json")
         return
 
@@ -458,6 +466,78 @@ class MyApp(cmd2.Cmd):
     @cmd2.with_argparser(rmdir_parser)
     def do_rmdir(self, args) -> None:
         pass
+
+
+    # Directory navigation command - change working directory
+    cd_parser = cmd2.Cmd2ArgumentParser(description='Change the current working directory.')
+    cd_parser.add_argument('path', nargs='?', help='Directory path to change to (e.g., A:/, A:/mydir, mydir, .., .)')
+    @cmd2.with_argparser(cd_parser)
+    def do_cd(self, args) -> None:
+        """Change the current working directory to an existing directory."""
+        global pwd
+        
+        target_path = args.path if args.path else None
+        
+        # If no path specified, show current directory
+        if target_path is None:
+            if pwd["drive"] is None:
+                self.poutput("No current directory set. Use 'cd A:/' to set initial directory.")
+                return
+            self.poutput(f"Current directory: {pwd['drive']}:{pwd['path']}")
+            return
+        
+        # Resolve path (handle relative paths)
+        resolved_path = self._resolve_path(target_path)
+        if resolved_path is None:
+            return
+        
+        # Parse drive and directory path
+        if len(resolved_path) < 3 or resolved_path[1:3] != ":/":
+            self.perror("Error: Invalid path format. Use format 'A:/' or 'A:/dirname'.")
+            return
+        
+        drive_letter = resolved_path[0].upper()
+        dir_path = resolved_path[3:] if len(resolved_path) > 3 else ""
+        
+        # Check if drive is mounted
+        if drive_letter not in mounted_drives:
+            self.perror(f"Error: No drive is mounted at {drive_letter}.")
+            return
+        
+        drive = mounted_drives[drive_letter]
+        
+        # Handle root directory case
+        if dir_path == "":
+            # Changing to root directory
+            pwd["drive"] = drive_letter
+            pwd["path"] = "/"
+            self.poutput(f"Changed directory to {drive_letter}:/")
+            # Update prompt to show current directory
+            self.prompt = f"AFS:{drive_letter}:/$ "
+            return
+        
+        # Check if the target directory exists
+        target_full_path = f"/{dir_path}"
+        dir_inode_index = drive.find_file(target_full_path)
+        if dir_inode_index is None:
+            self.perror(f"Error: Directory '{dir_path}' does not exist.")
+            return
+        
+        # Verify it's actually a directory
+        inode_start = drive.block_list[0]["inode_start"]
+        inode_per_block = drive.block_list[0]["block_size"] // 256
+        dir_inode = drive.block_list[inode_start + (dir_inode_index // inode_per_block)][dir_inode_index % inode_per_block]
+        if dir_inode["file_type"].lower() != "directory":
+            self.perror(f"Error: '{dir_path}' is not a directory.")
+            return
+        
+        # Update the current working directory
+        pwd["drive"] = drive_letter
+        pwd["path"] = f"/{dir_path}"
+        self.poutput(f"Changed directory to {drive_letter}:/{dir_path}")
+        
+        # Update prompt to show current directory
+        self.prompt = f"AFS[{drive_letter}:/{dir_path}]$ "
 
 
     # Directory listing with support for relative and absolute paths
@@ -501,17 +581,17 @@ class MyApp(cmd2.Cmd):
     def _resolve_path(self, path: str) -> str | None:
         """
         Resolve relative paths to absolute paths using current working directory.
-        Handles ., .., and relative paths appropriately.
+        Handles ., .., and relative paths appropriately with proper path normalization.
         """
         if path.startswith('/'):
             # Absolute path without drive - use current drive
             if pwd["drive"] is None:
                 self.perror("Error: No current directory set. Please specify a drive letter.")
                 return None
-            return f"{pwd['drive']}:{path}"
+            result_path = f"{pwd['drive']}:{path}"
         elif ':' in path:
             # Already absolute path with drive
-            return path
+            result_path = path
         else:
             # Relative path - combine with current directory
             if pwd["drive"] is None:
@@ -523,23 +603,54 @@ class MyApp(cmd2.Cmd):
             if current_path == "":
                 current_path = "/"
             
-            if path == "." or path == "":
-                return f"{pwd['drive']}:{current_path}"
-            elif path == "..":
-                # Go up one directory
-                if current_path == "/":
-                    return f"{pwd['drive']}:/"
-                else:
-                    parent_path = "/".join(current_path.split("/")[:-1])
-                    if parent_path == "":
-                        parent_path = "/"
-                    return f"{pwd['drive']}:{parent_path}"
+            # Build combined path
+            if current_path == "/":
+                combined = f"/{path}"
             else:
-                # Regular relative path
-                if current_path == "/":
-                    return f"{pwd['drive']}:/{path}"
-                else:
-                    return f"{pwd['drive']}:{current_path}/{path}"
+                combined = f"{current_path}/{path}"
+            
+            result_path = f"{pwd['drive']}:{combined}"
+        
+        # Now normalize the path to resolve .. and . components
+        return self._normalize_path(result_path)
+    
+    def _normalize_path(self, path: str) -> str:
+        """
+        Normalize a path by resolving . and .. components.
+        Takes a path like 'A:/dir1/dir2/../file.txt' and returns 'A:/dir1/file.txt'
+        """
+        if ':' not in path:
+            return path
+            
+        drive_part, path_part = path.split(':', 1)
+        
+        # Split path into components
+        if path_part.startswith('/'):
+            path_part = path_part[1:]  # Remove leading slash
+        
+        if path_part == "":
+            return f"{drive_part}:/"
+            
+        components = path_part.split('/')
+        normalized = []
+        
+        for component in components:
+            if component == '.' or component == '':
+                # Skip current directory references and empty components
+                continue
+            elif component == '..':
+                # Go up one directory
+                if normalized:
+                    normalized.pop()
+                # If we're already at root, .. has no effect
+            else:
+                normalized.append(component)
+        
+        # Reconstruct the path
+        if not normalized:
+            return f"{drive_part}:/"
+        else:
+            return f"{drive_part}:/{'/'.join(normalized)}"
     
     def _list_directory_contents(self, drive: Drive, drive_letter: str, dir_path: str) -> None:
         """
