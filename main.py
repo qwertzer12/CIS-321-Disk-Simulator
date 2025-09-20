@@ -745,6 +745,67 @@ class MyApp(cmd2.Cmd):
             self.poutput(f"{type_display:<10} {item['name']:<20} {size_display:<8} {item['modified']}")
 
 
+    # File content display command
+    cat_parser = cmd2.Cmd2ArgumentParser(description='Display the contents of a file.')
+    cat_parser.add_argument('path', nargs=1, help='Path of the file to display (e.g., A:/file.txt, file.txt, ../file.txt)')
+    @cmd2.with_argparser(cat_parser)
+    def do_cat(self, args) -> None:
+        """Display the contents of a file on a mounted drive."""
+        target_path = args.path[0]
+        
+        # Resolve path (handle relative paths using current working directory)
+        resolved_path = self._resolve_path(target_path)
+        if resolved_path is None:
+            return
+        
+        # Parse drive and file path
+        if len(resolved_path) < 3 or resolved_path[1:3] != ":/":
+            self.perror("Error: Invalid path format. Use format 'A:/filename' or relative paths like 'filename'.")
+            return
+        
+        drive_letter = resolved_path[0].upper()
+        file_path = resolved_path[3:] if len(resolved_path) > 3 else ""
+        
+        # Check if drive is mounted
+        if drive_letter not in mounted_drives:
+            self.perror(f"Error: No drive is mounted at {drive_letter}.")
+            return
+        
+        # Validate that we have a filename
+        if file_path == "":
+            self.perror("Error: Please specify a filename to display.")
+            return
+        
+        drive = mounted_drives[drive_letter]
+        
+        # Check if file exists
+        file_inode_index = drive.find_file(f"/{file_path}")
+        if file_inode_index is None:
+            self.perror(f"Error: File '{file_path}' does not exist.")
+            return
+        
+        # Verify it's actually a file (not a directory)
+        inode_start = drive.block_list[0]["inode_start"]
+        inode_per_block = drive.block_list[0]["block_size"] // 256
+        file_inode = drive.block_list[inode_start + (file_inode_index // inode_per_block)][file_inode_index % inode_per_block]
+        
+        if file_inode["file_type"].lower() == "directory":
+            self.perror(f"Error: '{file_path}' is a directory, not a file. Use 'ls' to list directory contents.")
+            return
+        
+        # Read and display file contents
+        file_content = drive.load_inode(file_inode_index)
+        if file_content is None:
+            self.perror(f"Error: Unable to read file '{file_path}'.")
+            return
+        
+        # Display the file content
+        if file_content == "":
+            self.poutput(f"File '{file_path}' is empty.")
+        else:
+            self.poutput(file_content)
+
+
     def do_exit(self, args) -> bool:
         """Exit the application."""
         print("Goodbye!")
