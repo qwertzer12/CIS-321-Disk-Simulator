@@ -23,6 +23,288 @@ class MyApp(cmd2.Cmd):
     delattr(cmd2.Cmd, 'do_py')
     delattr(cmd2.Cmd, 'do_edit')
 
+    # Completion functions for tab completion
+    def _complete_path_directories(self, text: str, line: str, begidx: int, endidx: int) -> list[str]:
+        """Complete directory paths for commands like cd and ls."""
+        completions = []
+        
+        # If text contains ':', parse drive and path parts
+        if ':' in text:
+            try:
+                drive_part, path_part = text.split(':', 1)
+                drive_letter = drive_part.upper()
+                
+                if drive_letter not in mounted_drives:
+                    return []
+                
+                drive = mounted_drives[drive_letter]
+                
+                # Handle root directory completion
+                if path_part == "/" or path_part == "":
+                    completions.append(f"{drive_letter}:/")
+                    # Add direct children of root
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            if inode["file_type"].lower() == "directory" and inode["file_name"] != "/":
+                                dir_name = inode["file_name"]
+                                if dir_name.startswith("/") and "/" not in dir_name[1:]:
+                                    completions.append(f"{drive_letter}:{dir_name}")
+                else:
+                    # Handle subdirectory completion
+                    if path_part.startswith('/'):
+                        path_part = path_part[1:]
+                    
+                    path_components = path_part.split('/')
+                    current_dir = "/" + "/".join(path_components[:-1]) if len(path_components) > 1 else "/"
+                    
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            if inode["file_type"].lower() == "directory":
+                                dir_name = inode["file_name"]
+                                if current_dir == "/":
+                                    if dir_name.startswith("/") and dir_name != "/" and "/" not in dir_name[1:]:
+                                        if dir_name[1:].startswith(path_components[-1]):
+                                            completions.append(f"{drive_letter}:{dir_name}")
+                                else:
+                                    prefix = current_dir + "/"
+                                    if dir_name.startswith(prefix):
+                                        remaining = dir_name[len(prefix):]
+                                        if "/" not in remaining and remaining.startswith(path_components[-1]):
+                                            completions.append(f"{drive_letter}:{dir_name}")
+            except ValueError:
+                pass
+        else:
+            # No drive specified, suggest mounted drives and relative paths
+            for drive_letter in mounted_drives.keys():
+                if drive_letter.lower().startswith(text.lower()) or text == "":
+                    completions.append(f"{drive_letter}:/")
+            
+            # Add relative path completions if we have a current directory
+            if pwd["drive"] is not None:
+                drive = mounted_drives[pwd["drive"]]
+                current_path = pwd["path"]
+                
+                # Handle relative path completion
+                if text in [".", ".."]:
+                    completions.append(text)
+                elif "/" in text:
+                    # Complex relative path
+                    pass
+                else:
+                    # Simple relative directory name
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    target_prefix = current_path + "/" if current_path != "/" else "/"
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            if inode["file_type"].lower() == "directory":
+                                dir_name = inode["file_name"]
+                                if dir_name.startswith(target_prefix) and dir_name != current_path:
+                                    relative_name = dir_name[len(target_prefix):]
+                                    if "/" not in relative_name and relative_name.startswith(text):
+                                        completions.append(relative_name)
+        
+        return completions
+
+    def _complete_path_files(self, text: str, line: str, begidx: int, endidx: int) -> list[str]:
+        """Complete file paths for commands like cat."""
+        completions = []
+        
+        # If text contains ':', parse drive and path parts
+        if ':' in text:
+            try:
+                drive_part, path_part = text.split(':', 1)
+                drive_letter = drive_part.upper()
+                
+                if drive_letter not in mounted_drives:
+                    return []
+                
+                drive = mounted_drives[drive_letter]
+                
+                # Handle root directory completion
+                if path_part == "/" or path_part == "":
+                    # Add direct children of root (files and directories)
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            if inode["file_type"].lower() == "file" and inode["file_name"] != "/":
+                                file_name = inode["file_name"]
+                                if file_name.startswith("/") and "/" not in file_name[1:]:
+                                    completions.append(f"{drive_letter}:{file_name}")
+                else:
+                    # Handle subdirectory completion
+                    if path_part.startswith('/'):
+                        path_part = path_part[1:]
+                    
+                    path_components = path_part.split('/')
+                    current_dir = "/" + "/".join(path_components[:-1]) if len(path_components) > 1 else "/"
+                    
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            if inode["file_type"].lower() == "file":
+                                file_name = inode["file_name"]
+                                if current_dir == "/":
+                                    if file_name.startswith("/") and file_name != "/" and "/" not in file_name[1:]:
+                                        if file_name[1:].startswith(path_components[-1]):
+                                            completions.append(f"{drive_letter}:{file_name}")
+                                else:
+                                    prefix = current_dir + "/"
+                                    if file_name.startswith(prefix):
+                                        remaining = file_name[len(prefix):]
+                                        if "/" not in remaining and remaining.startswith(path_components[-1]):
+                                            completions.append(f"{drive_letter}:{file_name}")
+            except ValueError:
+                pass
+        else:
+            # No drive specified, suggest mounted drives and relative paths
+            for drive_letter in mounted_drives.keys():
+                if drive_letter.lower().startswith(text.lower()) or text == "":
+                    completions.append(f"{drive_letter}:/")
+            
+            # Add relative path completions if we have a current directory
+            if pwd["drive"] is not None:
+                drive = mounted_drives[pwd["drive"]]
+                current_path = pwd["path"]
+                
+                # Handle relative path completion for files
+                if "/" in text:
+                    # Complex relative path
+                    pass
+                else:
+                    # Simple relative file name
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    target_prefix = current_path + "/" if current_path != "/" else "/"
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            if inode["file_type"].lower() == "file":
+                                file_name = inode["file_name"]
+                                if file_name.startswith(target_prefix):
+                                    relative_name = file_name[len(target_prefix):]
+                                    if "/" not in relative_name and relative_name.startswith(text):
+                                        completions.append(relative_name)
+        
+        return completions
+
+    def _complete_path_files_and_dirs(self, text: str, line: str, begidx: int, endidx: int) -> list[str]:
+        """Complete file and directory paths for commands like write and mkdir."""
+        completions = []
+        
+        # If text contains ':', parse drive and path parts
+        if ':' in text:
+            try:
+                drive_part, path_part = text.split(':', 1)
+                drive_letter = drive_part.upper()
+                
+                if drive_letter not in mounted_drives:
+                    return []
+                
+                drive = mounted_drives[drive_letter]
+                
+                # Handle root directory completion
+                if path_part == "/" or path_part == "":
+                    completions.append(f"{drive_letter}:/")
+                    # Add direct children of root (files and directories)
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            if inode["file_name"] != "/":
+                                item_name = inode["file_name"]
+                                if item_name.startswith("/") and "/" not in item_name[1:]:
+                                    completions.append(f"{drive_letter}:{item_name}")
+                else:
+                    # Handle subdirectory completion
+                    if path_part.startswith('/'):
+                        path_part = path_part[1:]
+                    
+                    path_components = path_part.split('/')
+                    current_dir = "/" + "/".join(path_components[:-1]) if len(path_components) > 1 else "/"
+                    
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            item_name = inode["file_name"]
+                            if current_dir == "/":
+                                if item_name.startswith("/") and item_name != "/" and "/" not in item_name[1:]:
+                                    if item_name[1:].startswith(path_components[-1]):
+                                        completions.append(f"{drive_letter}:{item_name}")
+                            else:
+                                prefix = current_dir + "/"
+                                if item_name.startswith(prefix):
+                                    remaining = item_name[len(prefix):]
+                                    if "/" not in remaining and remaining.startswith(path_components[-1]):
+                                        completions.append(f"{drive_letter}:{item_name}")
+            except ValueError:
+                pass
+        else:
+            # No drive specified, suggest mounted drives and relative paths
+            for drive_letter in mounted_drives.keys():
+                if drive_letter.lower().startswith(text.lower()) or text == "":
+                    completions.append(f"{drive_letter}:/")
+            
+            # Add relative path completions if we have a current directory
+            if pwd["drive"] is not None:
+                drive = mounted_drives[pwd["drive"]]
+                current_path = pwd["path"]
+                
+                # Handle relative path completion
+                if "/" in text:
+                    # Complex relative path
+                    pass
+                else:
+                    # Simple relative file/directory name
+                    inode_bitmap = drive.block_list[drive.block_list[0]["inode_bitmap_start"]]
+                    inode_start = drive.block_list[0]["inode_start"]
+                    inode_per_block = drive.block_list[0]["block_size"] // 256
+                    
+                    target_prefix = current_path + "/" if current_path != "/" else "/"
+                    
+                    for i in range(len(inode_bitmap)):
+                        if inode_bitmap[i]:
+                            inode = drive.block_list[inode_start + (i // inode_per_block)][i % inode_per_block]
+                            item_name = inode["file_name"]
+                            if item_name.startswith(target_prefix):
+                                relative_name = item_name[len(target_prefix):]
+                                if "/" not in relative_name and relative_name.startswith(text):
+                                    completions.append(relative_name)
+        
+        return completions
+
 
     # Sample command demonstrating cmd2 argument parsing
     greet_parser = cmd2.Cmd2ArgumentParser(description='Greet the user.')
@@ -93,6 +375,10 @@ class MyApp(cmd2.Cmd):
         inode = args.inode
 
         # Interactive validation loops for missing or invalid parameters
+        if block is not None and block < 32:
+            self.perror("Error: Blocks must be at least 32.")
+            return
+        
         while block is None:
             self.poutput("Enter block count:")
             answer = input()
@@ -107,7 +393,7 @@ class MyApp(cmd2.Cmd):
         
         if size < 1024:
             self.perror("Error: Block size must be at least 1024 bytes.")
-            size = None
+            return
         
         while size is None:
             self.poutput("Enter block size (in bytes):")
@@ -123,7 +409,7 @@ class MyApp(cmd2.Cmd):
             
         if inode < 1:
             self.perror("Error: There must be at least 1 inode.")
-            inode = None
+            return
 
         while inode is None:
             self.poutput("Enter inode count:")
@@ -199,7 +485,7 @@ class MyApp(cmd2.Cmd):
 
 
     unmount_parser = cmd2.Cmd2ArgumentParser(description='Unmount a virtual drive.')
-    unmount_parser.add_argument('path', nargs=1, help='Path of the drive to unmount')
+    unmount_parser.add_argument('path', nargs=1, choices_provider=lambda: list(mounted_drives.keys()), help='Path of the drive to unmount')
     @cmd2.with_argparser(unmount_parser)
     def do_unmount(self, args) -> None:
         path = args.path[0].upper()
@@ -213,7 +499,7 @@ class MyApp(cmd2.Cmd):
 
 
     displaydata_parser = cmd2.Cmd2ArgumentParser(description='Display the contents of a mounted drive.')
-    displaydata_parser.add_argument('path', nargs=1, help='Path of the drive to display')
+    displaydata_parser.add_argument('path', nargs=1, choices_provider=lambda: list(mounted_drives.keys()), help='Path of the drive to display')
     @cmd2.with_argparser(displaydata_parser)
     def do_displaydata(self, args) -> None:
         path = args.path[0].upper()
@@ -246,10 +532,9 @@ class MyApp(cmd2.Cmd):
                 self.poutput(" ".join(print_chain))
                 print_chain = []
 
-    
     # File creation and writing system with path validation
     write_parser = cmd2.Cmd2ArgumentParser(description='Write data to a mounted drive.')
-    write_parser.add_argument('path', nargs=1, help='Path of the file to write to (e.g., A:/file.txt, file.txt, ../file.txt)')
+    write_parser.add_argument('path', nargs=1, completer=_complete_path_files_and_dirs, help='Path of the file to write to (e.g., A:/file.txt, file.txt, ../file.txt)')
     write_parser.add_argument('data', nargs='?', help='Data to write to the file. Enclose in quotes for multiple words. If not provided, you will be prompted to enter the data.')
     @cmd2.with_argparser(write_parser)
     def do_write(self, args) -> None:
@@ -360,7 +645,7 @@ class MyApp(cmd2.Cmd):
 
     # Directory creation with extensive path validation
     mkdir_parser = cmd2.Cmd2ArgumentParser(description='Create a directory on a mounted drive.')
-    mkdir_parser.add_argument('path', nargs=1, help='Path of the directory to create (e.g., A:/mydir, mydir, ../mydir)')
+    mkdir_parser.add_argument('path', nargs=1, completer=_complete_path_files_and_dirs, help='Path of the directory to create (e.g., A:/mydir, mydir, ../mydir)')
     @cmd2.with_argparser(mkdir_parser)
     def do_mkdir(self, args) -> None:
         """Create a directory with comprehensive validation of path format and parent directories."""
@@ -469,15 +754,14 @@ class MyApp(cmd2.Cmd):
 
 
     rmdir_parser = cmd2.Cmd2ArgumentParser(description='Remove a directory from a mounted drive.')
-    rmdir_parser.add_argument('path', nargs=1, help='Path of the directory to remove (e.g., A:/mydir)')
+    rmdir_parser.add_argument('path', nargs=1, completer=_complete_path_directories, help='Path of the directory to remove (e.g., A:/mydir)')
     @cmd2.with_argparser(rmdir_parser)
     def do_rmdir(self, args) -> None:
         pass
 
 
-    # Directory navigation command - change working directory
     cd_parser = cmd2.Cmd2ArgumentParser(description='Change the current working directory.')
-    cd_parser.add_argument('path', nargs='?', help='Directory path to change to (e.g., A:/, A:/mydir, mydir, .., .)')
+    cd_parser.add_argument('path', nargs='?', completer=_complete_path_directories, help='Directory path to change to (e.g., A:/, A:/mydir, mydir, .., .)')
     @cmd2.with_argparser(cd_parser)
     def do_cd(self, args) -> None:
         """Change the current working directory to an existing directory."""
@@ -520,7 +804,7 @@ class MyApp(cmd2.Cmd):
             pwd["path"] = "/"
             self.poutput(f"Changed directory to {drive_letter}:/")
             # Update prompt to show current directory
-            self.prompt = f"AFS:{drive_letter}:/$ "
+            self.prompt = f"AFS[{drive_letter}:/]$ "
             return
         
         # Check if the target directory exists
@@ -549,7 +833,7 @@ class MyApp(cmd2.Cmd):
 
     # Directory listing with support for relative and absolute paths
     ls_parser = cmd2.Cmd2ArgumentParser(description='List directory contents.')
-    ls_parser.add_argument('path', nargs='?', help='Optional directory path to list (e.g., A:/, A:/mydir, mydir)')
+    ls_parser.add_argument('path', nargs='?', completer=_complete_path_directories, help='Optional directory path to list (e.g., A:/, A:/mydir, mydir)')
     @cmd2.with_argparser(ls_parser)
     def do_ls(self, args) -> None:
         """List directory contents for the current working directory or specified path."""
@@ -754,7 +1038,7 @@ class MyApp(cmd2.Cmd):
 
     # File content display command
     cat_parser = cmd2.Cmd2ArgumentParser(description='Display the contents of a file.')
-    cat_parser.add_argument('path', nargs=1, help='Path of the file to display (e.g., A:/file.txt, file.txt, ../file.txt)')
+    cat_parser.add_argument('path', nargs=1, completer=_complete_path_files, help='Path of the file to display (e.g., A:/file.txt, file.txt, ../file.txt)')
     @cmd2.with_argparser(cat_parser)
     def do_cat(self, args) -> None:
         """Display the contents of a file on a mounted drive."""

@@ -283,7 +283,7 @@ def load_drive(filename: str) -> Drive | None:
         with open(os.path.join(SAVE_PATH, filename), "r") as f:
             data = json.load(f)
             # Reconstruct Drive object from saved data
-            drive = Drive(total_blocks=data["block_list"][0]["total_blocks"], block_list=data["block_list"])
+            drive = Drive(name=data["block_list"][0]["name"], total_blocks=data["block_list"][0]["total_blocks"], block_list=data["block_list"])
             return drive
     except FileNotFoundError:
         print(f"File {filename} not found.")
