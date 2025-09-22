@@ -1,6 +1,42 @@
 # CIS 321 Disk Simulator
 
-A comprehensive command-line virtual disk simulator written in Python that implements a Unix-like file system. This project allows you to create, mount, manage, and interact with virtual drives using a custom shell interface with full directory navigation, file operations, and data persistence.
+## Very Simple File System (VSFS) Description
+
+The Very Simple File System (VSFS) is a simplified implementation of a Unix-like file system designed for educational purposes to demonstrate fundamental file system concepts. VSFS organizes data using a classic inode-based structure where the disk is divided into distinct regions: a superblock containing metadata about the file system, bitmap regions to track allocation of inodes and data blocks, an inode table storing file metadata and block pointers, and data blocks containing actual file content. This implementation provides core file system operations including file creation, deletion, reading, writing, and directory traversal while maintaining data integrity through bitmap-based allocation tracking and supporting hierarchical directory structures that mirror traditional Unix file systems.
+
+## VSFS Components Implementation
+
+### Core Data Structures and Implementation Status
+
+| Component | Data Structure Used | Implemented | Description |
+|-----------|-------------------|-------------|-------------|
+| **Superblock** | Python Dictionary | Yes | Contains file system metadata (block sizes, counts, layout information) |
+| **Inode Bitmap** | Python List of Booleans | Yes | Tracks which inodes are allocated/free |
+| **Data Bitmap** | Python List of Booleans | Yes | Tracks which data blocks are allocated/free |
+| **Inode Table** | List of Inode Objects (Dictionaries) | Yes | Stores file metadata, permissions, timestamps, and block pointers |
+| **Data Blocks** | Python Strings | Yes | Store actual file content (32 bytes per block for demo) |
+| **Directory Entries** | Special Inodes | Yes | Directories implemented as special inode types |
+| **File Allocation** | First-fit Algorithm | Yes | Allocates contiguous blocks using first-fit strategy |
+| **Path Resolution** | Recursive String Parsing | Yes | Supports absolute and relative paths with '..' and '.' |
+| **Block Pointers** | List of Tuples (start, length) | Yes | Direct block pointers in inode structure |
+| **Multi-Level Indexing** | List Structure (placeholder) | Partial | Basic structure exists but not fully implemented |
+| **Free Space Management** | Bitmap-based Allocation | Yes | Uses bitmaps to track free inodes and data blocks |
+| **Metadata Management** | Inode Attributes | Yes | Tracks creation, modification, access times and permissions |
+
+### File System Operations Implemented
+
+| Operation | Implementation Status | Data Structure/Algorithm Used |
+|-----------|----------------------|------------------------------|
+| **File Creation** | Complete | Inode allocation + bitmap updates |
+| **File Deletion** | Complete | Bitmap deallocation + block freeing |
+| **File Reading** | Complete | Block pointer traversal |
+| **File Writing** | Complete | Block allocation + data storage |
+| **Directory Creation** | Complete | Special inode type with no data blocks |
+| **Directory Listing** | Complete | Inode table scanning by path prefix |
+| **Path Navigation** | Complete | String parsing with '..' and '.' support |
+| **File Search** | Complete | Linear search through inode table |
+| **Space Allocation** | Complete | First-fit algorithm with bitmap tracking |
+| **Persistence** | Complete | JSON serialization of entire file system |
 
 ## Features
 
