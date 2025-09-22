@@ -1,5 +1,6 @@
 import cmd2
 from disk_simulator import *
+import time
 
 # Global state for the file system simulator
 mounted_drives: dict[str, Drive] = {"A": Drive("A", 64), "B": Drive("B", 128)}  # Pre-mount sample drives
@@ -13,8 +14,9 @@ class MyApp(cmd2.Cmd):
     """
     def __init__(self) -> None:
         super().__init__()
-        self.intro = "Welcome to MyApp! Type help or ? to list commands.\n"
+        self.intro = "Welcome to MyApp! Type help or ? to list commands.\nDemo available with 'demo' command."
         self.prompt = "AFS$ "
+        self.set_window_title("AFS Command Line Interface")
     
     # Remove unwanted cmd2 built-in commands for security/simplicity
     delattr(cmd2.Cmd, 'do_shell')
@@ -1095,6 +1097,367 @@ class MyApp(cmd2.Cmd):
             self.poutput(f"File '{file_path}' is empty.")
         else:
             self.poutput(file_content)
+
+    # Demo program, showcasing filesystem commands
+    demo_parser = cmd2.Cmd2ArgumentParser(description='Run a comprehensive demo of the filesystem commands.')
+    @cmd2.with_argparser(demo_parser)
+    def do_demo(self, args) -> None:
+        """
+        Interactive demonstration of the AFS (Abstract File System) capabilities.
+        This tutorial showcases the complete workflow from drive creation to file management.
+        """
+        # Introduction
+        self.poutput("=" * 70)
+        self.poutput("         WELCOME TO THE AFS INTERACTIVE DEMONSTRATION")
+        self.poutput("=" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nThis demonstration will guide you through the essential features of the")
+        time.sleep(2)
+        self.poutput("Abstract File System (AFS), including:")
+        time.sleep(2)
+        self.poutput("  • Virtual drive creation and management")
+        time.sleep(1.5)
+        self.poutput("  • File system mounting and navigation")
+        time.sleep(1.5)
+        self.poutput("  • Directory and file operations")
+        time.sleep(1.5)
+        self.poutput("  • Content management and visualization")
+        time.sleep(4)
+        
+        # Step 1: Virtual Drive Creation
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 1: CREATING A VIRTUAL DRIVE")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nFirst, we'll create a new virtual drive to work with.")
+        time.sleep(2)
+        self.poutput("The 'mkdrive' command allows us to specify:")
+        time.sleep(2)
+        self.poutput("  • Drive name: DEMO")
+        time.sleep(1.5)
+        self.poutput("  • Block count: 100 (storage capacity)")
+        time.sleep(1.5)
+        self.poutput("  • Block size: 4096 bytes (4KB per block)")
+        time.sleep(1.5)
+        self.poutput("  • Inode count: 50 (maximum number of files/directories)")
+        time.sleep(4)
+        
+        self.poutput("\nExecuting: mkdrive DEMO -b 100 -s 4096 -i 50")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("mkdrive DEMO -b 100 -s 4096 -i 50")
+            time.sleep(3)
+            self.poutput("\n✓ Virtual drive 'DEMO' has been created successfully!")
+        except Exception as e:
+            self.perror(f"✗ Failed to create drive: {e}")
+            return
+        
+        # Step 2: Drive Mounting
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 2: MOUNTING THE VIRTUAL DRIVE")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nBefore we can use the drive, it must be mounted to make it accessible.")
+        time.sleep(2)
+        self.poutput("We'll mount the DEMO drive at path 'D:' using the mount command.")
+        time.sleep(2)
+        self.poutput("This creates a connection between the drive file and the file system.")
+        time.sleep(4)
+        
+        self.poutput("\nExecuting: mount DEMO -p D")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("mount DEMO -p D")
+            time.sleep(3)
+            self.poutput("\n✓ Drive successfully mounted at D:")
+        except Exception as e:
+            self.perror(f"✗ Failed to mount drive: {e}")
+            return
+        
+        # Step 3: Navigation
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 3: NAVIGATING TO THE MOUNTED DRIVE")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nNow we'll navigate to our newly mounted drive using the 'cd' command.")
+        time.sleep(2)
+        self.poutput("This changes our current working directory to the root of drive D:.")
+        time.sleep(2)
+        self.poutput("Similar to changing directories in traditional operating systems.")
+        time.sleep(4)
+        
+        self.poutput("\nExecuting: cd D:/")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("cd D:/")
+            time.sleep(3)
+            self.poutput("\n✓ Successfully changed to drive D: root directory")
+        except Exception as e:
+            self.perror(f"✗ Failed to change directory: {e}")
+            return
+        
+        # Step 4: Directory Creation
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 4: CREATING DIRECTORY STRUCTURE")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nLet's organize our file system by creating directories.")
+        time.sleep(2)
+        self.poutput("We'll create two directories: 'documents' and 'photos'.")
+        time.sleep(2)
+        self.poutput("This demonstrates hierarchical organization capabilities.")
+        time.sleep(4)
+        
+        self.poutput("\nExecuting: mkdir documents")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("mkdir documents")
+            time.sleep(2)
+            
+            self.poutput("Executing: mkdir photos")
+            time.sleep(2)
+            self.onecmd_plus_hooks("mkdir photos")
+            time.sleep(3)
+            self.poutput("\n✓ Directories 'documents' and 'photos' created successfully!")
+        except Exception as e:
+            self.perror(f"✗ Failed to create directories: {e}")
+            return
+        
+        # Step 5: File Creation
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 5: CREATING FILES WITH CONTENT")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nNext, we'll create files in different locations to demonstrate")
+        time.sleep(2)
+        self.poutput("both root-level and subdirectory file creation.")
+        time.sleep(2)
+        self.poutput("The 'write' command creates files with specified content.")
+        time.sleep(4)
+        
+        self.poutput("\nCreating a README file in the root directory:")
+        time.sleep(2)
+        self.poutput("Executing: write readme.txt 'Welcome to the AFS demonstration!'")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("write readme.txt 'Welcome to the AFS demonstration!'")
+            time.sleep(2)
+            
+            self.poutput("\nCreating a document file:")
+            time.sleep(2)
+            self.poutput("Executing: write documents/notes.txt 'Project documentation and notes.'")
+            time.sleep(2)
+            self.onecmd_plus_hooks("write documents/notes.txt 'Project documentation and notes.'")
+            time.sleep(2)
+            
+            self.poutput("\nCreating a photo placeholder:")
+            time.sleep(2)
+            self.poutput("Executing: write photos/vacation.jpg 'Binary image data placeholder.'")
+            time.sleep(2)
+            self.onecmd_plus_hooks("write photos/vacation.jpg 'Binary image data placeholder.'")
+            time.sleep(3)
+            self.poutput("\n✓ All files created successfully!")
+        except Exception as e:
+            self.perror(f"✗ Failed to create files: {e}")
+            return
+        
+        # Step 6: Directory Exploration
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 6: EXPLORING THE FILE SYSTEM STRUCTURE")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nLet's explore what we've created using the 'ls' command.")
+        time.sleep(2)
+        self.poutput("This will show us the directory structure and file organization.")
+        time.sleep(4)
+        
+        self.poutput("\nListing root directory contents:")
+        time.sleep(2)
+        self.poutput("Executing: ls")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("ls")
+            time.sleep(3)
+            
+            self.poutput("\nExploring the documents directory:")
+            time.sleep(2)
+            self.poutput("Executing: ls documents")
+            time.sleep(2)
+            self.onecmd_plus_hooks("ls documents")
+            time.sleep(3)
+            
+            self.poutput("\nExploring the photos directory:")
+            time.sleep(2)
+            self.poutput("Executing: ls photos")
+            time.sleep(2)
+            self.onecmd_plus_hooks("ls photos")
+            time.sleep(3)
+        except Exception as e:
+            self.perror(f"✗ Failed to list directories: {e}")
+            return
+        
+        # Step 6.5: Directory Navigation and Relative Paths
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 6.5: DIRECTORY NAVIGATION AND RELATIVE PATHS")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nLet's explore directory navigation using relative paths.")
+        time.sleep(2)
+        self.poutput("We'll navigate into a subdirectory and then use relative paths to look around.")
+        time.sleep(4)
+        
+        self.poutput("\nNavigating into the documents directory:")
+        time.sleep(2)
+        self.poutput("Executing: cd documents")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("cd documents")
+            time.sleep(3)
+            
+            self.poutput("\nNow we're inside the documents directory. Let's look at the current location:")
+            time.sleep(2)
+            self.poutput("Executing: ls")
+            time.sleep(2)
+            self.onecmd_plus_hooks("ls")
+            time.sleep(3)
+            
+            self.poutput("\nUsing '..' to look back at the parent directory:")
+            time.sleep(2)
+            self.poutput("The '..' symbol represents the parent directory.")
+            time.sleep(2)
+            self.poutput("Executing: ls ..")
+            time.sleep(2)
+            self.onecmd_plus_hooks("ls ..")
+            time.sleep(3)
+            
+            self.poutput("\nWe can also look at sibling directories using relative paths:")
+            time.sleep(2)
+            self.poutput("Executing: ls ../photos")
+            time.sleep(2)
+            self.onecmd_plus_hooks("ls ../photos")
+            time.sleep(3)
+            
+            self.poutput("\nNavigating back to the root directory:")
+            time.sleep(2)
+            self.poutput("Executing: cd ..")
+            time.sleep(2)
+            self.onecmd_plus_hooks("cd ..")
+            time.sleep(3)
+            self.poutput("\n✓ Successfully demonstrated relative path navigation!")
+        except Exception as e:
+            self.perror(f"✗ Failed to navigate directories: {e}")
+            return
+        
+        # Step 7: Content Display
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 7: READING FILE CONTENTS")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nNow we'll examine the content of our files using the 'cat' command.")
+        time.sleep(2)
+        self.poutput("This demonstrates file content retrieval and display.")
+        time.sleep(4)
+        
+        self.poutput("\nReading the README file:")
+        time.sleep(2)
+        self.poutput("Executing: cat readme.txt")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("cat readme.txt")
+            time.sleep(3)
+            
+            self.poutput("\nReading the document file:")
+            time.sleep(2)
+            self.poutput("Executing: cat documents/notes.txt")
+            time.sleep(2)
+            self.onecmd_plus_hooks("cat documents/notes.txt")
+            time.sleep(3)
+        except Exception as e:
+            self.perror(f"✗ Failed to read files: {e}")
+            return
+        
+        # Step 8: System Information
+        self.poutput("\n" + "-" * 70)
+        self.poutput("STEP 8: SYSTEM MONITORING AND DIAGNOSTICS")
+        self.poutput("-" * 70)
+        time.sleep(3)
+        
+        self.poutput("\nFinally, let's examine our file system from a technical perspective.")
+        time.sleep(2)
+        self.poutput("We'll use system commands to view drive information and data layout.")
+        time.sleep(4)
+        
+        self.poutput("\nListing all block devices:")
+        time.sleep(2)
+        self.poutput("Executing: lsblk")
+        time.sleep(3)
+        try:
+            self.onecmd_plus_hooks("lsblk")
+            time.sleep(3)
+            
+            self.poutput("\nDisplaying drive data allocation:")
+            time.sleep(2)
+            self.poutput("Executing: displaydata D")
+            time.sleep(2)
+            self.onecmd_plus_hooks("displaydata D")
+            time.sleep(3)
+        except Exception as e:
+            self.perror(f"✗ Failed to display drive information: {e}")
+            return
+        
+        # Conclusion
+        time.sleep(4)
+        self.poutput("\n" + "=" * 70)
+        self.poutput("                    DEMONSTRATION COMPLETE")
+        self.poutput("=" * 70)
+        time.sleep(2)
+        
+        self.poutput("\nCongratulations! You have successfully completed the AFS demonstration.")
+        time.sleep(2)
+        self.poutput("\nKey concepts covered:")
+        time.sleep(2)
+        self.poutput("  ✓ Virtual drive creation with custom parameters")
+        time.sleep(1.5)
+        self.poutput("  ✓ Drive mounting and file system access")
+        time.sleep(1.5)
+        self.poutput("  ✓ Directory navigation and working directory management")
+        time.sleep(1.5)
+        self.poutput("  ✓ Hierarchical directory structure creation")
+        time.sleep(1.5)
+        self.poutput("  ✓ File creation with content in various locations")
+        time.sleep(1.5)
+        self.poutput("  ✓ Directory listing and file system exploration")
+        time.sleep(1.5)
+        self.poutput("  ✓ Relative path navigation and parent directory access")
+        time.sleep(1.5)
+        self.poutput("  ✓ File content retrieval and display")
+        time.sleep(1.5)
+        self.poutput("  ✓ System monitoring and drive diagnostics")
+        time.sleep(3)
+        
+        self.poutput("\nNext steps:")
+        time.sleep(2)
+        self.poutput("  • Experiment with additional commands using 'help'")
+        time.sleep(1.5)
+        self.poutput("  • Try creating more complex directory structures")
+        time.sleep(1.5)
+        self.poutput("  • Explore file operations like copying and deletion")
+        time.sleep(1.5)
+        self.poutput("  • Test the system with larger files and datasets")
+        time.sleep(3)
+        
+        self.poutput("\nFor a complete list of available commands, type 'help'")
+        time.sleep(2)
+        self.poutput("=" * 70)
 
 
     def do_exit(self, args) -> bool:
